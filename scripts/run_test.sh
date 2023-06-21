@@ -15,20 +15,20 @@ DOCKER_IMAGE="$(<"$here/image")"
 
 export RUST_MATRIX_DIR=${RUST_MATRIX_DIR:-`pwd`}
 export RUST_DRIVER_DIR=${RUST_DRIVER_DIR:-`pwd`/../scylla-rust-driver}
-
+export CCM_DIR=${CCM_DIR:-`pwd`/../scylla-ccm}
 
 if [[ ! -d ${RUST_MATRIX_DIR} ]]; then
     echo -e "\e[31m\$RUST_MATRIX_DIR = $RUST_MATRIX_DIR doesn't exist\e[0m"
     echo "${help_text}"
     exit 1
 fi
-#if [[ ! -d ${CCM_DIR} ]]; then
-#    echo -e "\e[31m\$CCM_DIR = $CCM_DIR doesn't exist\e[0m"
-#    echo "${help_text}"
-#    exit 1
-#fi
+if [[ ! -d ${CCM_DIR} ]]; then
+    echo -e "\e[31m\$CCM_DIR = $CCM_DIR doesn't exist\e[0m"
+    echo "${help_text}"
+    exit 1
+fi
 
-#mkdir -p ${HOME}/.ccm
+mkdir -p ${HOME}/.ccm
 mkdir -p ${HOME}/.local/lib
 mkdir -p ${HOME}/.docker
 
@@ -64,7 +64,7 @@ done
 
 docker_cmd="docker run --detach=true \
     ${WORKSPACE_MNT} \
-#    ${DOCKER_COMMAND_PARAMS} \
+    ${DOCKER_COMMAND_PARAMS} \
     ${DOCKER_CONFIG_MNT} \
     -v ${RUST_MATRIX_DIR}:${RUST_MATRIX_DIR} \
     -v ${RUST_DRIVER_DIR}:${RUST_DRIVER_DIR} \
@@ -90,7 +90,7 @@ docker_cmd="docker run --detach=true \
     -v ${HOME}/.local:${HOME}/.local \
     -v ${HOME}/.ccm:${HOME}/.ccm \
     --network=host --privileged \
-    ${DOCKER_IMAGE} bash -c '$*'"
+    ${DOCKER_IMAGE} bash -c 'pip install -e $CCM_DIR ; export PATH=\$PATH:\${HOME}/.local/bin ; $*'"
 
 echo "Running Docker: $docker_cmd"
 container=$(eval $docker_cmd)
