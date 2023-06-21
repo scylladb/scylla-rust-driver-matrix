@@ -36,9 +36,9 @@ jobs:
         run: |
           split=(${GITHUB_REF_NAME//-/ })
           MATRIX_DOCKER_IMAGE=$(cat scripts/image)
-          docker manifest inspect ${MATRIX_DOCKER_IMAGE}
-          exit_status=$?
-          if [[ $exit_status -ne 0 ]]; then
+          
+          if ! docker manifest inspect ${MATRIX_DOCKER_IMAGE}
+          then
             docker build ./scripts -t ${MATRIX_DOCKER_IMAGE}
             docker push ${MATRIX_DOCKER_IMAGE}
           fi
