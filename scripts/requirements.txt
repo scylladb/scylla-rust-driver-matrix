@@ -1,6 +1,6 @@
 six>=1.6
-pytest==6.2.5
-PyYAML==5.4.1
+pytest==7.2.0
+PyYAML==6.0.1
 packaging==19.0
 scales==1.0.9
 mock==4.0.3
@@ -14,4 +14,4 @@ gevent>=1.0
 greenlet
 cython
 jinja2==3.0.3
-boto3==1.20.51
+boto3==1.28.4
