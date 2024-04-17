@@ -4,10 +4,10 @@ import logging
 import os
 import subprocess
 from datetime import timedelta
+from pathlib import Path
 from typing import List
 import traceback
 
-# from common import run_command_in_shell, CCM_CLUSTER_IP_PREFIX, CCM_CLUSTER_NODES
 from run import Run
 from email_sender import create_report, get_driver_origin_remote, send_mail
 
@@ -71,10 +71,7 @@ def main(arguments: argparse.Namespace):
 
 def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], latest_tags_size: int = 2) -> List[str]:
     major_versions = sorted(major_versions, key=lambda major_ver: major_ver)
-    commands = [f"cd {repo_directory}", "git checkout .", ]
-    # if not os.environ.get("DEV_MODE", False):
-    #     commands.append("git fetch -p --all")
-    commands.append("git tag --sort=-creatordate | grep v0\.")
+    commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep v0\."]
 
     selected_tags = {}
     ignore_tags = set()
@@ -93,27 +90,27 @@ def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], l
                 selected_tags.setdefault(version, []).append(repo_tag)
 
     for major_version in major_versions:
-        if len(selected_tags[major_version]) < latest_tags_size:
-            raise ValueError(f"There are no '{latest_tags_size}' different versions that start with the major version"
-                             f" '{major_version}'")
         result.extend(selected_tags[major_version][:latest_tags_size])
+        if len(result) == latest_tags_size:
+            break
+
     return result
 
 
 def get_arguments() -> argparse.Namespace:
-    versions = ['v0.8.2', 'v0.7.0']
+    versions = ['v0.12.0', 'v0.11.0']
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('rust_driver_git', help='folder with git repository of rust-driver')
-    parser.add_argument('--versions', default=versions,
+    parser.add_argument('--versions', default=versions, nargs='*',
                         help='rust-driver versions to test, default={}'.format(','.join(versions)))
     parser.add_argument('--tests', choices=['rust', 'serverless', 'tls'], nargs='*', type=str,
                         help='tests to run')
     parser.add_argument('--scylla-version', help="relocatable scylla version to use",
                         default=os.environ.get('SCYLLA_VERSION', None)),
-    parser.add_argument('--version-size', help='The number of the latest versions that will test.'
-                                               'The version is filtered by the major and minor values.'
-                                               'For example, the user selects the 2 latest versions for version 4.'
-                                               'The values to be returned are: 4.9.0-scylla-1 and 4.8.0-scylla-0',
+    parser.add_argument('--rust-driver-versions-size', help='The number of the latest versions that will test.'
+                                                            'The version is filtered by the major and minor values.'
+                                                            'For example, the user selects the 2 latest versions.'
+                                                            'The values to be returned are: v0.12.0 and v0.11.1',
                         type=int, default=None, nargs='?')
     parser.add_argument('--recipients', help="whom to send mail at the end of the run",  nargs='+', default=None)
     arguments = parser.parse_args()
@@ -122,11 +119,10 @@ def get_arguments() -> argparse.Namespace:
         versions = versions.split(',')
 
     arguments.versions = versions
-
-    if arguments.version_size:
+    if arguments.rust_driver_versions_size:
         arguments.versions = extract_n_latest_repo_tags(repo_directory=arguments.rust_driver_git,
                                                         major_versions=list({tuple(v.split('.', maxsplit=2)[:2]) for v in versions}),
-                                                        latest_tags_size=arguments.version_size)
+                                                        latest_tags_size=arguments.rust_driver_versions_size)
 
     return arguments
 
