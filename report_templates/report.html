@@ -160,7 +160,7 @@
                         <td>{{ summary.testsuite_summary.time }}</td>
                         <td>{{ summary.testsuite_summary.tests }}</td>
                         <td>{{ summary.testsuite_summary.tests - summary.testsuite_summary.skipped - summary.testsuite_summary.failures - summary.testsuite_summary.errors }}</td>
-                        {% if summary.failures == 0 %}
+                        {% if summary.testsuite_summary.failures == 0 %}
                             <td>{{ summary.testsuite_summary.failures }}</td>
                         {% else %}
                             <td class='result_table_error'>{{ summary.testsuite_summary.failures }}</td>
