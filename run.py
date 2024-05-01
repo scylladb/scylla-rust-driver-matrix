@@ -7,10 +7,11 @@ from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import Dict, List
 
-
+import yaml
 from packaging.version import Version, InvalidVersion
 
-from common import scylla_uri_per_node, run_command_in_shell, get_nodes_ip_from_ccm
+from cluster import TestCluster
+from common import scylla_uri_per_node, run_command_in_shell
 from processjunit import ProcessJUnit
 
 
@@ -25,13 +26,6 @@ class Run:
         self.call_test_func = self.__getattribute__(f"run_{test}")
         if not self.call_test_func:
             raise RuntimeError(f"Not supported test: {test}")
-
-    @property
-    def cluster_nodes_ip(self):
-        """
-        This function should not be cached_property as we want to catch case when cluster went down between tests
-        """
-        return get_nodes_ip_from_ccm()
 
     @cached_property
     def version_folder(self) -> Path:
@@ -57,17 +51,6 @@ class Run:
                 return target_version_folder / str(tag)
         else:
             raise ValueError("Not found directory for rust-driver version '%s'", self.driver_version)
-
-    # @cached_property
-    # def xunit_file(self) -> Path:
-    #     xunit_dir = Path(os.path.dirname(__file__)) / "xunit" / self.driver_version
-    #     if not xunit_dir.exists():
-    #         xunit_dir.mkdir(parents=True)
-    #
-    #     file_path = xunit_dir / f'pytest.{self.driver_version}.xml'
-    #     if file_path.exists():
-    #         file_path.unlink()
-    #     return file_path
 
     @cached_property
     def ignore_tests(self) -> Dict[str, List[str]]:
@@ -169,46 +152,67 @@ class Run:
             return False
 
     def run_rust(self):
-        test_command = f"{scylla_uri_per_node(nodes_ips=self.cluster_nodes_ip)} " \
-                       "cargo test --verbose -- -Z unstable-options --format json --report-time | " \
-                       f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | " \
-                       f"/usr/local/cargo/bin/cargo2junit > rust_results_{self._full_driver_version}.xml"
-        return self.run(test_command=test_command, test_result_file_pref="rust_results")
+        with TestCluster(Path(self._rust_driver_git), self._scylla_version, nodes=3) as cluster:
+            cluster.start()
+            cluster_nodes_ip = cluster.nodes_addresses()
+            run_command_in_shell(driver_repo_path=self._rust_driver_git,
+                                 cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples")
+            test_command = f"{scylla_uri_per_node(nodes_ips=cluster_nodes_ip)} " \
+                           "cargo test --verbose -- -Z unstable-options --format json --report-time | " \
+                           f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | " \
+                           f"/usr/local/cargo/bin/cargo2junit > rust_results_{self._full_driver_version}.xml"
+            logging.info("Test command: %s", test_command)
+            return self.run(test_command=test_command, test_result_file_pref="rust_results")
 
     def run(self, test_command: str, test_result_file_pref: str) -> ProcessJUnit | None:
         report = None
         test_results_dir = Path(os.path.dirname(__file__)) / "test_results"
+        argus_test_results_dir = Path(os.path.dirname(__file__)) / "argus_test_results"
+
         logging.info("Changing the current working directory to the '%s' path", self._rust_driver_git)
         os.chdir(self._rust_driver_git)
-        # if self._checkout_branch() and self._apply_patch_files() and self._install_python_requirements():
         if self._checkout_branch():
-            run_command_in_shell(driver_repo_path=self._rust_driver_git,
-                                 cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples")
             logging.info("Run test command: %s", test_command)
             subprocess.call(test_command, shell=True, executable="/bin/bash",
                             env=self.environment, cwd=self._rust_driver_git)
             logging.info("Finish test command: %s", test_command)
+
             logging.info("Start Copy test result files")
             self.copy_test_results(copy_from_dir=Path(self._rust_driver_git),
                                    copy_to_dir=test_results_dir,
-                                   test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}")
+                                   test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
+                                   move=True)
             logging.info("Finish Copy test result files")
+
             report = ProcessJUnit(
-                new_report_xml_path=Path(os.path.dirname(__file__)) / "reports" / f"TEST-{self._tests}-{self._full_driver_version}-"
+                new_report_xml_path=test_results_dir / f"TEST-{self._tests}-{self._full_driver_version}-"
                                                                                   "summary.xml"
                 , tests_result_xml=test_results_dir / f"{test_result_file_pref}_{self._full_driver_version}.xml"
                 , tag=self._full_driver_version)
 
+            report.update_testcase_classname_with_tag()
+
+            # Copy test results exclude summary files, as Argus can not parse them
+            logging.info("Start Copy test result files for Argus")
+            self.copy_test_results(copy_from_dir=test_results_dir,
+                                   copy_to_dir=argus_test_results_dir,
+                                   test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
+                                   move=False)
+            logging.info("Finish Copy test result files for Argus")
         return report
 
     @staticmethod
-    def copy_test_results(copy_from_dir: Path, copy_to_dir: Path, test_result_file_pref: str):
+    def copy_test_results(copy_from_dir: Path, copy_to_dir: Path, test_result_file_pref: str, move: bool):
         if not (test_result_files := Path(copy_from_dir).glob(f'{test_result_file_pref}*')):
             raise FileNotFoundError(f"Test results files with name like '{test_result_file_pref}' are not found under {copy_from_dir}")
 
+        copy_to_dir.mkdir(parents=True, exist_ok=True)
         for elem in test_result_files:
-            if elem.is_file():
+            if elem.is_file() and elem.name.startswith(test_result_file_pref):
                 source_file = copy_from_dir / elem.name
                 destination_file = copy_to_dir / elem.name
                 logging.info("Move from %s to %s", source_file, destination_file)
-                source_file.rename(destination_file)
+                if move:
+                    shutil.move(source_file, destination_file)
+                else:
+                    shutil.copy(source_file, destination_file)

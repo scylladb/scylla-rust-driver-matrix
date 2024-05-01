@@ -134,7 +134,7 @@ def send_mail(recipients, report):
     env = jinja2.Environment(loader=loader, autoescape=True, extensions=['jinja2.ext.loopcontrols'])
     template = env.get_template("report.html")
     html = template.render(report)
-    email_in_file = Path(os.path.dirname(__file__)) / "reports" / "test_results_email.html"
+    email_in_file = Path(os.path.dirname(__file__)) / "test_results" / "test_results_email.html"
     with email_in_file.open(mode="w", encoding="utf-8") as file:
         file.write(html)
     LOGGER.info("Results has been rendered to html and save into an email %s", email_in_file)

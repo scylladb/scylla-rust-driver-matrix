@@ -46,19 +46,26 @@ class ProcessJUnit:
         with self.report_path.open(mode="w", encoding="utf-8") as file:
             file.write(ElementTree.tostring(element=new_tree, encoding="utf-8").decode())
 
-        self.tests_result_xml.rename(self.report_path.parent / f"TEST-{self.tests_result_xml.name}")
-
         self._summary['testsuite_summary'] = testsuite_summary_keys
+
+    def update_testcase_classname_with_tag(self):
+        logging.info("Update testcase classname with driver version in '%s'", self.tests_result_xml.name)
+        with self.tests_result_xml.open(mode="r", encoding="utf-8") as file:
+            xml_text = file.readlines()
+
+        updated_text = []
+        for line in xml_text:
+            updated_text.append(line.replace('classname="', f'classname="{self.tag}.'))
+
+        with self.tests_result_xml.open(mode="w", encoding="utf-8") as file:
+            file.write("".join(updated_text))
 
     @property
     def summary(self):
-        self._create_report()
+        if not self._summary:
+            self._create_report()
         return self._summary
 
     @property
     def is_failed(self) -> bool:
         return not (sum([test_info["errors"] + test_info["failures"] for test_info in self.summary.values()]) == 0)
-
-    def clear_original_reports(self):
-        logging.info("Removing all run's xml files of '%s' version", self.tag)
-        shutil.rmtree(self.tests_result_xml)

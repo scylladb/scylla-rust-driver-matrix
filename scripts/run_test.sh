@@ -7,7 +7,7 @@ Script to run rust driver matrix from within docker
     Optional values can be set via environment variables
     RUST_MATRIX_DIR, TOOLS_JAVA_DIR, JMX_DIR, CCM_DIR, SCYLLA_DBUILD_SO_DIR, RUST_DRIVER_DIR, INSTALL_DIRECTORY
 
-    ./run_test.sh python3 main.py ../python-driver ../scylla
+    ./run_test.sh python3 main.py ../scylla-rust-driver ../scylla
 "
 
 here="$(realpath $(dirname "$0"))"
