@@ -125,7 +125,7 @@ class Run:
             run_command_in_shell(driver_repo_path=self._rust_driver_git,
                                  cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples")
             test_command = f"{scylla_uri_per_node(nodes_ips=cluster_nodes_ip)} " \
-                           "cargo test --verbosed --no-fail-fast -- -Z unstable-options --format json --report-time | " \
+                           "cargo test --verbose --no-fail-fast -- -Z unstable-options --format json --report-time | " \
                            f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | " \
                            f"/usr/local/cargo/bin/cargo2junit > rust_results_{self._full_driver_version}.xml"
             logging.info("Test command: %s", test_command)
@@ -141,7 +141,7 @@ class Run:
         if self._checkout_branch():
             logging.info("Run test command: %s", test_command)
             subprocess.call(test_command, shell=True, executable="/bin/bash",
-                            env=self.environment, cwd=self._rust_driver_git)
+                            env=self.environment, cwd=self._rust_driver_git, )
             logging.info("Finish test command: %s", test_command)
 
             logging.info("Start Copy test result files")
