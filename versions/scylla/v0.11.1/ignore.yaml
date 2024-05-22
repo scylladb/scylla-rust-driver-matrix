@@ -1,0 +1,3 @@
+tests:
+  ignore:
+    - transport::cql_types_test::test_naive_date

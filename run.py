@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, List
 
 import yaml
-from packaging.version import Version, InvalidVersion
 
 from cluster import TestCluster
 from common import scylla_uri_per_node, run_command_in_shell
@@ -27,45 +26,35 @@ class Run:
         if not self.call_test_func:
             raise RuntimeError(f"Not supported test: {test}")
 
-    @cached_property
-    def version_folder(self) -> Path:
-        version_pattern = re.compile(r"(\d+.)+\d+$")
-        target_version_folder = Path(os.path.dirname(__file__)) / "versions"
-        try:
-            target_version = Version(self.driver_version)
-        except InvalidVersion:
-            target_dir = target_version_folder / self.driver_version
-            if target_dir.is_dir():
-                return target_dir
-            return target_version_folder / "master"
+    def version_folder(self) -> Path | None:
+        target_version_folder = Path(os.path.dirname(__file__)) / "versions" / "scylla"
+        logging.info("target_version_folder '%s'", target_version_folder)
 
-        tags_defined = sorted(
-            (
-                Version(folder_path.name)
-                for folder_path in target_version_folder.iterdir() if version_pattern.match(folder_path.name)
-            ),
-            reverse=True
-        )
-        for tag in tags_defined:
-            if tag <= target_version:
-                return target_version_folder / str(tag)
-        else:
-            raise ValueError("Not found directory for rust-driver version '%s'", self.driver_version)
+        for folder_path in target_version_folder.iterdir():
+            logging.info("folder_path.name '%s'", folder_path.name)
+            if folder_path.name == self.driver_version:
+                return target_version_folder / folder_path.name
+        return None
 
-    @cached_property
-    def ignore_tests(self) -> Dict[str, List[str]]:
-        ignore_file = self.version_folder / "ignore.yaml"
+    def ignore_tests(self) -> List[str]:
+        if self.version_folder() is None:
+            logging.info("There are no ignore tests for version tag '%s'", self.driver_version)
+            return []
+
+        ignore_file = self.version_folder() / "ignore.yaml"
         if not ignore_file.exists():
             logging.info("Cannot find ignore file for version '%s'", self.driver_version)
-            return {}
+            return []
 
         with ignore_file.open(mode="r", encoding="utf-8") as file:
             content = yaml.safe_load(file)
-        ignore_tests = content.get("tests", []) or {}
-        if not ignore_tests.get("ignore", None):
-            logging.info("The file '%s' for version tag '%s' doesn't contains any test to ignore for protocol",
-                         ignore_file, self.driver_version)
-        return ignore_tests
+
+        logging.info("Ignore file content: %s", content)
+        ignore_tests = content.get("tests", {})
+        logging.info("ignore_tests: %s", ignore_tests)
+        if not (ignore := ignore_tests.get("ignore", [])):
+            logging.info("The file '%s' for version tag '%s' doesn't contains any test to ignore", ignore_file, self.driver_version)
+        return ignore
 
     @cached_property
     def environment(self) -> Dict:
@@ -81,28 +70,6 @@ class Run:
             stderr = proc.communicate()
             status_code = proc.returncode
         assert status_code == 0, stderr
-
-    def _apply_patch_files(self) -> bool:
-        for file_path in self.version_folder.iterdir():
-            if file_path.name.startswith("patch"):
-                try:
-                    logging.info("Show patch's statistics for file '%s'", file_path)
-                    self._run_command_in_shell(f"git apply --stat {file_path}")
-                    logging.info("Detect patch's errors for file '%s'", file_path)
-                    try:
-                        self._run_command_in_shell(f"git apply --check {file_path}")
-                    except AssertionError as exc:
-                        if 'tests/integration/conftest.py' in str(exc):
-                            self._run_command_in_shell(f"rm tests/integration/conftest.py")
-                        else:
-                            raise
-                    logging.info("Applying patch file '%s'", file_path)
-                    self._run_command_in_shell(f"patch -p1 -i {file_path}")
-                except Exception:
-                    logging.exception("Failed to apply patch '%s' to version '%s'",
-                                      file_path, self.driver_version)
-                    raise
-        return True
 
     @lru_cache(maxsize=None)
     def _create_venv(self):
@@ -184,13 +151,13 @@ class Run:
                                    move=True)
             logging.info("Finish Copy test result files")
 
-            report = ProcessJUnit(
-                new_report_xml_path=test_results_dir / f"TEST-{self._tests}-{self._full_driver_version}-"
-                                                                                  "summary.xml"
-                , tests_result_xml=test_results_dir / f"{test_result_file_pref}_{self._full_driver_version}.xml"
-                , tag=self._full_driver_version)
+            report = ProcessJUnit(summary_report_xml_path=test_results_dir / f"TEST-{self._tests}-{self._full_driver_version}-"
+                                                                             "summary.xml",
+                                  tests_result_xml=test_results_dir / f"{test_result_file_pref}_{self._full_driver_version}.xml",
+                                  tag=self._full_driver_version, ignore_set=self.ignore_tests())
 
             report.update_testcase_classname_with_tag()
+            report._create_report()
 
             # Copy test results exclude summary files, as Argus can not parse them
             logging.info("Start Copy test result files for Argus")
