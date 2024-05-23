@@ -154,6 +154,7 @@
                         <th>Failures</th>
                         <th>Errors</th>
                         <th>Skipped</th>
+                        <th>Ignored On Failure</th>
                     </tr>
                     <tr>
                         <td>{{ test }}</td>
@@ -171,6 +172,7 @@
                             <td class='result_table_error'>{{ summary.testsuite_summary.errors }}</td>
                         {% endif %}
                         <td>{{ summary.testsuite_summary.skipped }}</td>
+                        <td>{{ summary.testsuite_summary.ignored_on_failure }}</td>
                     </tr>
                 </table>
             {% endif %}
