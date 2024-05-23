@@ -43,7 +43,7 @@ class ProcessJUnit:
         for testsuite_element in tree.iter("testsuite"):
             testcase_keys = deepcopy(self._summary_keys)
             for key in testcase_keys:
-                testcase_keys[key] = get_attribute()
+                testcase_keys[key] = get_attribute() if key != "ignored_on_failure" else testcase_keys[key]
                 if key == "failures" and testcase_keys[key] > 0 and self.ignore_set:
                     testcase_keys[key] = filter_out_ignored_failed_test()
 
