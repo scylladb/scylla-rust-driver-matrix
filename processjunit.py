@@ -94,19 +94,17 @@ class ProcessJUnit:
             testsuit_child = ElementTree.SubElement(new_tree, "testsuite", attrib=testsuite_element.attrib)
             for element in testsuite_element.iter("testcase"):
                 testcase_element = ElementTree.SubElement(testsuit_child, "testcase", attrib=element.attrib)
-                tag_name = element.tag
                 if len(list(element.iter())) == 2:
                     element_test_details = list(element.iter())[1]
-                    if element_test_details.tag == "failure" and \
-                            element_test_details.attrib["message"].replace("failed ", "") in self.ignore_set:
-                        logging.info("Failed test %s is ignored for %s driver version. Failure message: %s",
-                                     element_test_details.attrib["message"], self.tag, element_test_details.text)
+                    tag_name = element_test_details.tag
+                    if (element_test_details.tag == "failure" and
+                            element_test_details.attrib["message"].replace("failed ", "") in self.ignore_set):
+                        logging.info("Failed test is ignored for %s driver version. Failure message: %s",
+                                     self.tag, element_test_details.text)
                         # Change tag name to prevent test failure
                         tag_name = "ignored_on_failure"
                         # Decrease amount of failed tests that its failure is expected for the rust driver version
                         testsuit_child.attrib["failures"] = str(int(testsuit_child.attrib["failures"]) - 1)
-                    elif element_test_details.tag == "skipped":
-                        tag_name = "skipped"
 
                     new_element_test_details = ElementTree.SubElement(
                         testcase_element, tag_name, attrib=element_test_details.attrib)
