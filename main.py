@@ -69,8 +69,7 @@ def main(arguments: argparse.Namespace):
     quit(status)
 
 
-def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], latest_tags_size: int = 2) -> List[str]:
-    major_versions = sorted(major_versions, key=lambda major_ver: major_ver)
+def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -> List[str]:
     commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep v0\."]
 
     selected_tags = {}
@@ -89,7 +88,7 @@ def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], l
                 ignore_tags.add(version)
                 selected_tags.setdefault(version, []).append(repo_tag)
 
-    for major_version in major_versions:
+    for major_version in selected_tags:
         result.extend(selected_tags[major_version][:latest_tags_size])
         if len(result) == latest_tags_size:
             break
@@ -98,7 +97,7 @@ def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], l
 
 
 def get_arguments() -> argparse.Namespace:
-    versions = ['v0.12.0', 'v0.11.0']
+    versions = ['v0.13.0', 'v0.12.0']
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('rust_driver_git', help='folder with git repository of rust-driver')
     parser.add_argument('--versions', default=versions, nargs='*',
@@ -121,7 +120,6 @@ def get_arguments() -> argparse.Namespace:
     arguments.versions = versions
     if arguments.rust_driver_versions_size:
         arguments.versions = extract_n_latest_repo_tags(repo_directory=arguments.rust_driver_git,
-                                                        major_versions=list({tuple(v.split('.', maxsplit=2)[:2]) for v in versions}),
                                                         latest_tags_size=arguments.rust_driver_versions_size)
 
     return arguments

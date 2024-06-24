@@ -3,4 +3,4 @@ tests:
     # https://github.com/scylladb/scylla-rust-driver/issues/1018
     - transport::session_test::test_batch_lwts
     - lwt_optimisation::if_lwt_optimisation_mark_offered_then_negotiatied_and_lwt_routed_optimally
-    - tablets::test_lwt_optimization_works_with_tablets (cargo test)
+    - tablets::test_lwt_optimization_works_with_tablets
