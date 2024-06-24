@@ -91,6 +91,8 @@ def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], l
 
     for major_version in major_versions:
         result.extend(selected_tags[major_version][:latest_tags_size])
+        logging.info("Major versions: %s", result)
+        logging.info("latest_tags_size: %s", latest_tags_size)
         if len(result) == latest_tags_size:
             break
 
@@ -98,7 +100,7 @@ def extract_n_latest_repo_tags(repo_directory: str, major_versions: List[str], l
 
 
 def get_arguments() -> argparse.Namespace:
-    versions = ['v0.12.0', 'v0.11.0']
+    versions = ['v0.13.0', 'v0.12.0', 'v0.11.0']
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('rust_driver_git', help='folder with git repository of rust-driver')
     parser.add_argument('--versions', default=versions, nargs='*',
