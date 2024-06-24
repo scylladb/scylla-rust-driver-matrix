@@ -1,6 +1,5 @@
 tests:
   ignore:
-    - transport::cql_types_test::test_naive_date
     # https://github.com/scylladb/scylla-rust-driver/issues/1018
     - transport::caching_session::tests::test_partitioner_name_caching
     - transport::session_test::test_table_partitioner_in_metadata
