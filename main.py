@@ -38,11 +38,12 @@ def main(arguments: argparse.Namespace):
         results[driver_version] = dict()
         for test in arguments.tests:
             logging.info('=== RUST DRIVER VERSION %s. TEST: %s ===', driver_version, test)
-            try:
-                report = Run(rust_driver_git=arguments.rust_driver_git,
+            runner = Run(rust_driver_git=arguments.rust_driver_git,
                              tag=driver_version,
                              test=test,
-                             scylla_version=arguments.scylla_version).call_test_func()
+                             scylla_version=arguments.scylla_version)
+            try:
+                report = runner.call_test_func()
 
                 if not report:
                     raise EmptyTestResult(f"No result for test '{test}' and driver version {driver_version}")
@@ -58,7 +59,9 @@ def main(arguments: argparse.Namespace):
                 logging.exception(f"{driver_version} failed")
                 status = 1
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                results[driver_version] = dict(exception=traceback.format_exception(exc_type, exc_value, exc_traceback))
+                failure_reason = traceback.format_exception(exc_type, exc_value, exc_traceback)
+                results[driver_version] = dict(exception=failure_reason)
+                runner.create_metadata_for_failure(reason="\n".join(failure_reason))
 
     if arguments.recipients:
         email_report = create_report(results=results)
