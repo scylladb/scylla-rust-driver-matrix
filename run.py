@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -118,6 +119,16 @@ class Run:
             logging.error("Failed to branch for version '%s', with: '%s'", self.driver_version, str(exc))
             return False
 
+    @cached_property
+    def xunit_dir(self) -> Path:
+        return Path(os.path.dirname(__file__)) / "test_results"
+    @property
+    def result_file_name(self) -> str:
+        return f'rust_results_{self.driver_version}.xml'
+    @property
+    def metadata_file_name(self) -> str:
+        return f'metadata_rust_results_{self.driver_version}.json'
+
     def run_rust(self):
         with TestCluster(Path(self._rust_driver_git), self._scylla_version, nodes=3) as cluster:
             cluster.start()
@@ -131,11 +142,27 @@ class Run:
             logging.info("Test command: %s", test_command)
             return self.run(test_command=test_command, test_result_file_pref="rust_results")
 
+    def create_metadata_for_failure(self, reason: str) -> None:
+        metadata_file = self.xunit_dir / self.metadata_file_name
+        if not self.xunit_dir.exists():
+            self.xunit_dir.mkdir(parents=True)
+        metadata = {
+            "driver_name": self.result_file_name.replace(".xml", ""),
+            "driver_type": "rust",
+            "failure_reason": reason,
+        }
+        metadata_file.write_text(json.dumps(metadata))
+
     def run(self, test_command: str, test_result_file_pref: str) -> ProcessJUnit | None:
         report = None
         test_results_dir = Path(os.path.dirname(__file__)) / "test_results"
         argus_test_results_dir = Path(os.path.dirname(__file__)) / "argus_test_results"
-
+        metadata_file = self.xunit_dir / self.metadata_file_name
+        metadata = {
+            "driver_name": self.result_file_name.replace(".xml", ""),
+            "driver_type": "rust",
+            "junit_result": f"./{self.result_file_name}",
+        }
         logging.info("Changing the current working directory to the '%s' path", self._rust_driver_git)
         os.chdir(self._rust_driver_git)
         if self._checkout_branch():
@@ -158,7 +185,9 @@ class Run:
 
             report.update_testcase_classname_with_tag()
             report._create_report()
-
+            if not self.xunit_dir.exists():
+                self.xunit_dir.mkdir(parents=True)
+            metadata_file.write_text(json.dumps(metadata))
             # Copy test results exclude summary files, as Argus can not parse them
             logging.info("Start Copy test result files for Argus")
             self.copy_test_results(copy_from_dir=test_results_dir,
