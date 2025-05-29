@@ -76,7 +76,7 @@ def main(arguments: argparse.Namespace):
 def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -> List[str]:
     commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$'"]
 
-    selected_tags: dict[tuple[str, str], list[str]] = {}
+    selected_tags: dict[tuple[str, str], str] = {}
     ignore_tags: Set[tuple[str, str]] = set()
     result: list[str] = []
     commands_in_line = "\n".join(commands)
@@ -101,10 +101,10 @@ def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -
                 (major, minor) = (first, second)
             if (major, minor) not in ignore_tags:
                 ignore_tags.add((major, minor))
-                selected_tags.setdefault((major, minor), []).append(repo_tag)
+                selected_tags[(major, minor)] = repo_tag
 
-    for minor_version in selected_tags:
-        result.extend(selected_tags[minor_version][:latest_tags_size])
+    for minor_version in sorted(selected_tags.keys(), reverse=True):
+        result.append(selected_tags[minor_version])
         if len(result) == latest_tags_size:
             break
 
