@@ -73,7 +73,7 @@ def main(arguments: argparse.Namespace):
 
 
 def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -> List[str]:
-    commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep '^v[0-9]*\.[0-9]*\.[0-9]*$'"]
+    commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$'"]
 
     selected_tags = {}
     ignore_tags = set()
