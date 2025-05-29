@@ -1,0 +1,40 @@
+[project]
+name = "scylla-rust-driver-matrix"
+description = "Testing multiple version of Scylla Rust Driver"
+authors = [{ name = "ScyllaDB" }]
+keywords = ["rust", "scylla", "driver", "testing"]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'Natural Language :: English',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+]
+dependencies = [
+    'packaging',
+    'PyYAML',
+    'jinja2',
+    'boto3',
+    'ccm @ git+https://github.com/scylladb/scylla-ccm.git@master'
+]
+version = "0.1"
+requires-python = ">=3.13"
+
+[project.urls]
+"Homepage" = "https://github.com/scylladb/scylla-rust-driver-matrix"
+"Source" = "https://github.com/scylladb/scylla-rust-driver-matrix"
+"Issues" = "https://github.com/scylladb/scylla-rust-driver-matrix/issues"
+
+
+[dependency-groups]
+dev = [
+    "pyright",
+    "ruff"
+]
+
+[tool.pyright]
+include = ["cluster.py", "common.py", "main.py", "processjunit.py"]
+strict = ["common.py"]
