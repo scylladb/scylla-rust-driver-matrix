@@ -3,9 +3,10 @@ import argparse
 import logging
 import os
 import subprocess
+import re
 from datetime import timedelta
 from pathlib import Path
-from typing import List
+from typing import List, Set
 import traceback
 
 from run import Run
@@ -75,9 +76,9 @@ def main(arguments: argparse.Namespace):
 def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -> List[str]:
     commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$'"]
 
-    selected_tags = {}
-    ignore_tags = set()
-    result = []
+    selected_tags: dict[tuple[str, str], list[str]] = {}
+    ignore_tags: Set[tuple[str, str]] = set()
+    result: list[str] = []
     commands_in_line = "\n".join(commands)
     try:
         lines = subprocess.check_output(commands_in_line, shell=True, stderr=subprocess.STDOUT).decode().splitlines()
@@ -86,13 +87,24 @@ def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -
 
     for repo_tag in lines:
         if "." in repo_tag:
-            version = tuple(repo_tag.split(".", maxsplit=2)[:2])
-            if version not in ignore_tags:
-                ignore_tags.add(version)
-                selected_tags.setdefault(version, []).append(repo_tag)
+            if not re.match(r'^v[0-9]+\.[0-9]+\.[0-9]+$', repo_tag):
+                raise RuntimeError(f'Encountered unknown tag: {repo_tag}')
+            (first, second, third) = repo_tag[1:].split(".")
+            if first == '0':
+                # Handling this case is a bit pedantic on my side. In Rust, if version starts with '0', then
+                # the second number describes major version and the third number describes minor version.
+                # Patch versions are not present in this case.
+                # We don't really need to handle this, since Rust Driver reached 1.0 already, but lets
+                # do it just to be safe.
+                (major, minor) = ('0.' + second, third)
+            else:
+                (major, minor) = (first, second)
+            if (major, minor) not in ignore_tags:
+                ignore_tags.add((major, minor))
+                selected_tags.setdefault((major, minor), []).append(repo_tag)
 
-    for major_version in selected_tags:
-        result.extend(selected_tags[major_version][:latest_tags_size])
+    for minor_version in selected_tags:
+        result.extend(selected_tags[minor_version][:latest_tags_size])
         if len(result) == latest_tags_size:
             break
 
