@@ -1,1 +1,7 @@
 .idea
+__pycache__/
+test_results/
+.zed/
+argus_test_results/
+test_results/
+uv.lock
