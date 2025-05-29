@@ -108,7 +108,7 @@ def get_arguments() -> argparse.Namespace:
     parser.add_argument('--tests', choices=['rust', 'serverless', 'tls'], nargs='*', type=str,
                         help='tests to run')
     parser.add_argument('--scylla-version', help="relocatable scylla version to use",
-                        default=os.environ.get('SCYLLA_VERSION', None)),
+                        default=os.environ.get('SCYLLA_VERSION', None))
     parser.add_argument('--rust-driver-versions-size', help='The number of the latest versions that will test.'
                                                             'The version is filtered by the major and minor values.'
                                                             'For example, the user selects the 2 latest versions.'
