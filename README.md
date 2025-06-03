@@ -6,11 +6,12 @@
 * pip
 * docker
 * git
-* OpenJDK 11 
+* OpenJDK 11
 * CCM
+* cargo2junit
 
 #### Installing dependencies
-Docker image include all needed dependencies 
+Docker image include all needed dependencies
 
 ##### Repositories dependencies
 All repositories should be under the **same base folder**
@@ -27,24 +28,17 @@ pip3 install https://github.com/scylladb/scylla-ccm/archive/master.zip &
 
 ## Running locally
 
-* Execute the main.py wrapper like:
-  * Create and start Scylla cluster:
+* From `rust-driver-matrix`:
   ```bash
-  ccm create -i 127.0.1. -n 3 --scylla -v release:5.2  scylla-cluster
-  ccm start
+  # Run all standard tests on latest rust-driver tag (--versions 1)
+  # Default rust-driver versions: v0.8.2,v0.7.0. To change it, use `--versions` argument
+  python3 python3 main.py ../scylla-rust-driver --tests rust --scylla-version release:2025.1 --rust-driver-versions-size 1
   ```
-  * Running with scylla-rust-driver: 
-    * From `rust-driver-matrix`:
-      ```bash
-      # Run all standard tests on latest rust-driver tag (--versions 1)
-      # Default rust-driver versions: v0.8.2,v0.7.0. To change it, use `--versions` argument 
-      python3 python3 main.py /scylla-rust-driver --tests rust,serverless,tls --scylla-version 5.2 --version-size 1
-      ```
 
-  * Running with docker image: 
-      ```bash
-      ./scripts/run_test.sh python3 main.py /scylla-rust-driver --tests rust --scylla-version 5.2 --version-size 1
-      ```
+* With docker image:
+  ```bash
+  ./scripts/run_test.sh python3 main.py ../scylla-rust-driver --tests rust --scylla-version release:2025.1 --rust-driver-versions-size 1
+  ```
 
 #### Uploading docker images
 When doing changes to `requirements.txt`, or any other change to docker image, it can be uploaded like this:
