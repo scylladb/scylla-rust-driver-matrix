@@ -1,0 +1,4 @@
+tests:
+    ignore:
+        # https://github.com/scylladb/scylla-rust-driver/issues/1369
+        - "scylla/src/client/session_builder.rs - client::session_builder::GenericSessionBuilder<DefaultMode>::tls_context (line 333)"
