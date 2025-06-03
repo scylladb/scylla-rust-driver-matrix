@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+    paths:
+      - scripts/image
 
 jobs:
   docker:
@@ -18,16 +20,7 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Verify Changed files
-        uses: tj-actions/changed-files@v36
-        id: changed-files
-        with:
-          since_last_remote_commit: true
-          files: |
-             scripts/image
-
       - name: Build and push docker
-        if: steps.changed-files.outputs.any_changed == 'true'
         shell: bash
         run: |
           split=(${GITHUB_REF_NAME//-/ })
