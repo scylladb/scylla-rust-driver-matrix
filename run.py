@@ -62,6 +62,8 @@ class Run:
         result = {}
         result.update(os.environ)
         result["SCYLLA_VERSION"] = self._scylla_version
+        result["RUST_BACKTRACE"] = "full"
+        result["RUST_LOG"] = "trace"
         return result
 
     def _run_command_in_shell(self, cmd: str):
@@ -71,43 +73,6 @@ class Run:
             stderr = proc.communicate()
             status_code = proc.returncode
         assert status_code == 0, stderr
-
-    @lru_cache(maxsize=None)
-    def _create_venv(self):
-        basic_packages = ("pytest",
-                          "https://github.com/scylladb/scylla-ccm/archive/master.zip",
-                          "pytest-subtests")
-        if self._venv_path.exists() and self._venv_path.is_dir():
-            logging.info("Removing old rust venv in directory '%s'", self._venv_path)
-            shutil.rmtree(self._venv_path)
-
-        logging.info("Creating a new rust venv in directory '%s'", self._venv_path)
-        self._venv_path.mkdir(parents=True)
-        self._run_command_in_shell(cmd=f"python3 -m venv {self._venv_path}")
-        logging.info("Upgrading 'pip' and 'setuptools' packages to the latest version")
-        self._run_command_in_shell(cmd=f"{self._activate_venv_cmd()} && pip install --upgrade pip setuptools")
-        logging.info("Installing the following packages:\n%s", "\n".join(basic_packages))
-        self._run_command_in_shell(cmd=f"{self._activate_venv_cmd()} && pip install {' '.join(basic_packages)}")
-
-    @lru_cache(maxsize=None)
-    def _activate_venv_cmd(self):
-        return f"source {self._venv_path}/bin/activate"
-
-    @lru_cache(maxsize=None)
-    def _install_python_requirements(self):
-        if os.environ.get("DEV_MODE", False) and self._venv_path.exists() and self._venv_path.is_dir():
-            return True
-        try:
-            self._create_venv()
-            for requirement_file in ["requirements.txt", "test-requirements.txt"]:
-                if os.path.exists(requirement_file):
-                    self._run_command_in_shell(f"{self._activate_venv_cmd()} && "
-                                               f"pip install --force-reinstall -r {requirement_file}")
-            return True
-        except Exception as exc:
-            logging.error("Failed to install python requirements for version %s, with: %s",
-                          self.driver_version, str(exc))
-            return False
 
     def _checkout_branch(self):
         try:
