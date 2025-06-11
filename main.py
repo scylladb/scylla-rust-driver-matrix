@@ -42,7 +42,8 @@ def main(arguments: argparse.Namespace):
             runner = Run(rust_driver_git=arguments.rust_driver_git,
                              tag=driver_version,
                              test=test,
-                             scylla_version=arguments.scylla_version)
+                             scylla_version=arguments.scylla_version,
+                             test_threads=arguments.test_threads)
             try:
                 report = runner.call_test_func()
 
@@ -112,6 +113,8 @@ def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -
 
 
 def get_arguments() -> argparse.Namespace:
+    num_cpus = len(os.sched_getaffinity(0))
+    default_test_threads = 16 if num_cpus > 16 else None
     versions = ['v0.13.0', 'v0.12.0']
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('rust_driver_git', help='folder with git repository of rust-driver')
@@ -127,6 +130,10 @@ def get_arguments() -> argparse.Namespace:
                                                             'The values to be returned are: v0.12.0 and v0.11.1',
                         type=int, default=None, nargs='?')
     parser.add_argument('--recipients', help="whom to send mail at the end of the run",  nargs='+', default=None)
+    parser.add_argument('--test-threads', help="How many threads to use for testing. Corresponds to the same flag in `cargo test`."
+                                               "If not provided, defaults to None (which means the flag won't be passed to Cargo,"
+                                               "unless there are more than 16 CPUs available, in which case it defaults to 16."
+                                               "This is to prevent overwhelming Scylla cluster with too many schema changes", type=int, default=default_test_threads)
     arguments = parser.parse_args()
     versions = arguments.versions
     if not isinstance(versions, list):

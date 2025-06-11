@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from functools import cached_property, lru_cache
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -16,7 +16,7 @@ from processjunit import ProcessJUnit
 
 
 class Run:
-    def __init__(self, rust_driver_git, tag, test, scylla_version):
+    def __init__(self, rust_driver_git, tag, test, scylla_version, test_threads: Optional[int]):
         self.driver_version = tag.split("-", maxsplit=1)[0]
         self._full_driver_version = tag
         self._rust_driver_git = rust_driver_git
@@ -26,6 +26,7 @@ class Run:
         self.call_test_func = self.__getattribute__(f"run_{test}")
         if not self.call_test_func:
             raise RuntimeError(f"Not supported test: {test}")
+        self._test_threads = test_threads
 
     def version_folder(self) -> Path | None:
         target_version_folder = Path(os.path.dirname(__file__)) / "versions" / "scylla"
@@ -100,8 +101,9 @@ class Run:
             cluster_nodes_ip = cluster.nodes_addresses()
             run_command_in_shell(driver_repo_path=self._rust_driver_git,
                                  cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples")
+            test_threads_flag = f"--test-threads={self._test_threads}" if self._test_threads is not None else ""
             test_command = f"{scylla_uri_per_node(nodes_ips=cluster_nodes_ip)} " \
-                           "cargo test --verbose --no-fail-fast --package scylla -- -Z unstable-options --format json --report-time | " \
+                           f"cargo test --verbose --no-fail-fast --package scylla -- -Z unstable-options --format json --report-time {test_threads_flag} | " \
                            f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | " \
                            f"cargo2junit > rust_results_{self._full_driver_version}.xml"
             logging.info("Test command: %s", test_command)
