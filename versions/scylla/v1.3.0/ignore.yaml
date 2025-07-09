@@ -1,0 +1,4 @@
+tests:
+    ignore:
+        # https://github.com/scylladb/scylla-rust-driver-matrix/issues/26
+        - "load_balancing::tablets::test_default_policy_is_tablet_aware"
