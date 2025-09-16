@@ -75,14 +75,16 @@ def main(arguments: argparse.Namespace):
 
 
 def extract_n_latest_repo_tags(repo_directory: str, latest_tags_size: int = 2) -> List[str]:
-    commands = [f"cd {repo_directory}", "git checkout .", "git tag --sort=-creatordate | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$'"]
 
     selected_tags: dict[tuple[str, str], str] = {}
     ignore_tags: Set[tuple[str, str]] = set()
     result: list[str] = []
-    commands_in_line = "\n".join(commands)
     try:
-        lines = subprocess.check_output(commands_in_line, shell=True, stderr=subprocess.STDOUT).decode().splitlines()
+        subprocess.check_output("git checkout .", shell=True, stderr=subprocess.STDOUT, cwd=repo_directory)
+        lines = subprocess.check_output("git tag --sort=-creatordate | grep '^v[0-9]*\\.[0-9]*\\.[0-9]*$'",
+                                        shell=True,
+                                        stderr=subprocess.STDOUT,
+                                        cwd=repo_directory).decode().splitlines()
     except subprocess.CalledProcessError as e:
         raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
 
