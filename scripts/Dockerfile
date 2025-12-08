@@ -29,7 +29,7 @@ RUN set -eux; \
     url="https://static.rust-lang.org/rustup/dist/${rustArch}/rustup-init"; \
     wget "$url"; \
     chmod +x rustup-init; \
-    ./rustup-init -y --no-modify-path --default-toolchain nightly-2025-06-02; \
+    ./rustup-init -y --no-modify-path --default-toolchain nightly-2025-12-07; \
     . /usr/local/cargo/env; \
     rm rustup-init; \
     cargo install cargo2junit;
