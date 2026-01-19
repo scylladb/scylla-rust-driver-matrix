@@ -16,7 +16,9 @@ from processjunit import ProcessJUnit
 
 
 class Run:
-    def __init__(self, rust_driver_git, tag, test, scylla_version, test_threads: Optional[int]):
+    def __init__(
+        self, rust_driver_git, tag, test, scylla_version, test_threads: Optional[int]
+    ):
         self.driver_version = tag.split("-", maxsplit=1)[0]
         self._full_driver_version = tag
         self._rust_driver_git = rust_driver_git
@@ -40,12 +42,16 @@ class Run:
 
     def ignore_tests(self) -> List[str]:
         if self.version_folder() is None:
-            logging.info("There are no ignore tests for version tag '%s'", self.driver_version)
+            logging.info(
+                "There are no ignore tests for version tag '%s'", self.driver_version
+            )
             return []
 
         ignore_file = self.version_folder() / "ignore.yaml"
         if not ignore_file.exists():
-            logging.info("Cannot find ignore file for version '%s'", self.driver_version)
+            logging.info(
+                "Cannot find ignore file for version '%s'", self.driver_version
+            )
             return []
 
         with ignore_file.open(mode="r", encoding="utf-8") as file:
@@ -55,7 +61,11 @@ class Run:
         ignore_tests = content.get("tests", {})
         logging.info("ignore_tests: %s", ignore_tests)
         if not (ignore := ignore_tests.get("ignore", [])):
-            logging.info("The file '%s' for version tag '%s' doesn't contains any test to ignore", ignore_file, self.driver_version)
+            logging.info(
+                "The file '%s' for version tag '%s' doesn't contains any test to ignore",
+                ignore_file,
+                self.driver_version,
+            )
         return ignore
 
     @cached_property
@@ -69,8 +79,14 @@ class Run:
 
     def _run_command_in_shell(self, cmd: str):
         logging.debug("Execute the cmd '%s'", cmd)
-        with subprocess.Popen(cmd, shell=True, executable="/bin/bash", env=self.environment,
-                              cwd=self._rust_driver_git, stderr=subprocess.PIPE) as proc:
+        with subprocess.Popen(
+            cmd,
+            shell=True,
+            executable="/bin/bash",
+            env=self.environment,
+            cwd=self._rust_driver_git,
+            stderr=subprocess.PIPE,
+        ) as proc:
             stderr = proc.communicate()
             status_code = proc.returncode
         assert status_code == 0, stderr
@@ -82,32 +98,50 @@ class Run:
             self._run_command_in_shell(f"git checkout {self._full_driver_version}")
             return True
         except Exception as exc:
-            logging.error("Failed to branch for version '%s', with: '%s'", self.driver_version, str(exc))
+            logging.error(
+                "Failed to branch for version '%s', with: '%s'",
+                self.driver_version,
+                str(exc),
+            )
             return False
 
     @cached_property
     def xunit_dir(self) -> Path:
         return Path(os.path.dirname(__file__)) / "test_results"
+
     @property
     def result_file_name(self) -> str:
-        return f'rust_results_{self.driver_version}.xml'
+        return f"rust_results_{self.driver_version}.xml"
+
     @property
     def metadata_file_name(self) -> str:
-        return f'metadata_rust_results_{self.driver_version}.json'
+        return f"metadata_rust_results_{self.driver_version}.json"
 
     def run_rust(self):
-        with TestCluster(Path(self._rust_driver_git), self._scylla_version, nodes=3) as cluster:
+        with TestCluster(
+            Path(self._rust_driver_git), self._scylla_version, nodes=3
+        ) as cluster:
             cluster.start()
             cluster_nodes_ip = cluster.nodes_addresses()
-            run_command_in_shell(driver_repo_path=self._rust_driver_git,
-                                 cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples")
-            test_threads_flag = f"--test-threads={self._test_threads}" if self._test_threads is not None else ""
-            test_command = f"{scylla_uri_per_node(nodes_ips=cluster_nodes_ip)} " \
-                           f"cargo test --verbose --no-fail-fast --package scylla -- -Z unstable-options --format json --report-time {test_threads_flag} | " \
-                           f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | " \
-                           f"cargo2junit > rust_results_{self._full_driver_version}.xml"
+            run_command_in_shell(
+                driver_repo_path=self._rust_driver_git,
+                cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples",
+            )
+            test_threads_flag = (
+                f"--test-threads={self._test_threads}"
+                if self._test_threads is not None
+                else ""
+            )
+            test_command = (
+                f"{scylla_uri_per_node(nodes_ips=cluster_nodes_ip)} "
+                f"cargo test --verbose --no-fail-fast --package scylla -- -Z unstable-options --format json --report-time {test_threads_flag} | "
+                f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | "
+                f"cargo2junit > rust_results_{self._full_driver_version}.xml"
+            )
             logging.info("Test command: %s", test_command)
-            return self.run(test_command=test_command, test_result_file_pref="rust_results")
+            return self.run(
+                test_command=test_command, test_result_file_pref="rust_results"
+            )
 
     def create_metadata_for_failure(self, reason: str) -> None:
         metadata_file = self.xunit_dir / self.metadata_file_name
@@ -130,25 +164,40 @@ class Run:
             "driver_type": "rust",
             "junit_result": f"./{self.result_file_name}",
         }
-        logging.info("Changing the current working directory to the '%s' path", self._rust_driver_git)
+        logging.info(
+            "Changing the current working directory to the '%s' path",
+            self._rust_driver_git,
+        )
         os.chdir(self._rust_driver_git)
         if self._checkout_branch():
             logging.info("Run test command: %s", test_command)
-            subprocess.call(test_command, shell=True, executable="/bin/bash",
-                            env=self.environment, cwd=self._rust_driver_git)
+            subprocess.call(
+                test_command,
+                shell=True,
+                executable="/bin/bash",
+                env=self.environment,
+                cwd=self._rust_driver_git,
+            )
             logging.info("Finish test command: %s", test_command)
 
             logging.info("Start Copy test result files")
-            self.copy_test_results(copy_from_dir=Path(self._rust_driver_git),
-                                   copy_to_dir=test_results_dir,
-                                   test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
-                                   move=True)
+            self.copy_test_results(
+                copy_from_dir=Path(self._rust_driver_git),
+                copy_to_dir=test_results_dir,
+                test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
+                move=True,
+            )
             logging.info("Finish Copy test result files")
 
-            report = ProcessJUnit(summary_report_xml_path=test_results_dir / f"TEST-{self._tests}-{self._full_driver_version}-"
-                                                                             "summary.xml",
-                                  tests_result_xml=test_results_dir / f"{test_result_file_pref}_{self._full_driver_version}.xml",
-                                  tag=self._full_driver_version, ignore_set=self.ignore_tests())
+            report = ProcessJUnit(
+                summary_report_xml_path=test_results_dir
+                / f"TEST-{self._tests}-{self._full_driver_version}-"
+                "summary.xml",
+                tests_result_xml=test_results_dir
+                / f"{test_result_file_pref}_{self._full_driver_version}.xml",
+                tag=self._full_driver_version,
+                ignore_set=self.ignore_tests(),
+            )
 
             report.update_testcase_classname_with_tag()
             report._create_report()
@@ -157,17 +206,25 @@ class Run:
             metadata_file.write_text(json.dumps(metadata))
             # Copy test results exclude summary files, as Argus can not parse them
             logging.info("Start Copy test result files for Argus")
-            self.copy_test_results(copy_from_dir=test_results_dir,
-                                   copy_to_dir=argus_test_results_dir,
-                                   test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
-                                   move=False)
+            self.copy_test_results(
+                copy_from_dir=test_results_dir,
+                copy_to_dir=argus_test_results_dir,
+                test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
+                move=False,
+            )
             logging.info("Finish Copy test result files for Argus")
         return report
 
     @staticmethod
-    def copy_test_results(copy_from_dir: Path, copy_to_dir: Path, test_result_file_pref: str, move: bool):
-        if not (test_result_files := Path(copy_from_dir).glob(f'{test_result_file_pref}*')):
-            raise FileNotFoundError(f"Test results files with name like '{test_result_file_pref}' are not found under {copy_from_dir}")
+    def copy_test_results(
+        copy_from_dir: Path, copy_to_dir: Path, test_result_file_pref: str, move: bool
+    ):
+        if not (
+            test_result_files := Path(copy_from_dir).glob(f"{test_result_file_pref}*")
+        ):
+            raise FileNotFoundError(
+                f"Test results files with name like '{test_result_file_pref}' are not found under {copy_from_dir}"
+            )
 
         copy_to_dir.mkdir(parents=True, exist_ok=True)
         for elem in test_result_files:

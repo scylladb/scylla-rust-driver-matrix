@@ -31,7 +31,7 @@ class KeyStore:
         return json.loads(self.get_file_contents(json_file))
 
     def download_file(self, filename, dest_filename):
-        with open(dest_filename, 'wb') as file_obj:
+        with open(dest_filename, "wb") as file_obj:
             file_obj.write(self.get_file_contents(filename))
 
     def get_email_credentials(self):
@@ -57,6 +57,7 @@ class Email:
     """
     Responsible for sending emails
     """
+
     _attachments_size_limit = 10485760  # 10Mb = 20 * 1024 * 1024
     _body_size_limit = 26214400  # 25Mb = 20 * 1024 * 1024
 
@@ -84,10 +85,10 @@ class Email:
 
     def prepare_email(self, subject, content, recipients, html=True, files=()):  # pylint: disable=too-many-arguments
         msg = MIMEMultipart()
-        msg['subject'] = subject
-        msg['from'] = self.sender
+        msg["subject"] = subject
+        msg["from"] = self.sender
         assert recipients, "No recipients provided"
-        msg['to'] = ','.join(recipients)
+        msg["to"] = ",".join(recipients)
         if html:
             text_part = MIMEText(content, "html")
         else:
@@ -97,14 +98,15 @@ class Email:
         for path in files:
             attachment_size += os.path.getsize(path)
             with open(path, "rb") as fil:
-                part = MIMEApplication(
-                    fil.read(),
-                    Name=os.path.basename(path)
-                )
-            part['Content-Disposition'] = 'attachment; filename="%s"' % os.path.basename(path)
+                part = MIMEApplication(fil.read(), Name=os.path.basename(path))
+            part["Content-Disposition"] = (
+                'attachment; filename="%s"' % os.path.basename(path)
+            )
             msg.attach(part)
         if attachment_size >= self._attachments_size_limit:
-            raise AttachementSizeExceeded(current_size=attachment_size, limit=self._attachments_size_limit)
+            raise AttachementSizeExceeded(
+                current_size=attachment_size, limit=self._attachments_size_limit
+            )
         email = msg.as_string()
         if len(email) >= self._body_size_limit:
             raise BodySizeExceeded(current_size=len(email), limit=self._body_size_limit)
@@ -130,27 +132,35 @@ class Email:
 
 
 def send_mail(recipients, report):
-    loader = jinja2.FileSystemLoader(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'report_templates'))
-    env = jinja2.Environment(loader=loader, autoescape=True, extensions=['jinja2.ext.loopcontrols'])
+    loader = jinja2.FileSystemLoader(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "report_templates")
+    )
+    env = jinja2.Environment(
+        loader=loader, autoescape=True, extensions=["jinja2.ext.loopcontrols"]
+    )
     template = env.get_template("report.html")
     html = template.render(report)
-    email_in_file = Path(os.path.dirname(__file__)) / "test_results" / "test_results_email.html"
+    email_in_file = (
+        Path(os.path.dirname(__file__)) / "test_results" / "test_results_email.html"
+    )
     with email_in_file.open(mode="w", encoding="utf-8") as file:
         file.write(html)
-    LOGGER.info("Results has been rendered to html and save into an email %s", email_in_file)
+    LOGGER.info(
+        "Results has been rendered to html and save into an email %s", email_in_file
+    )
 
     email_client = Email()
     LOGGER.info("Sending email to '%s'", recipients)
     subject = f"{report['status']}: {report['job_name']} {report['build_id']} - {datetime.now()}"
 
-    email_client.send(subject=subject,
-                      content=html,
-                      recipients=recipients)
+    email_client.send(subject=subject, content=html, recipients=recipients)
 
 
 def get_scylla_build_info():
     for build_info in Path(os.getenv("WORKSPACE", ".")).glob("**/00-Build.txt"):
-        return dict([l.split(': ', maxsplit=1) for l in build_info.read_text().splitlines()])
+        return dict(
+            [l.split(": ", maxsplit=1) for l in build_info.read_text().splitlines()]
+        )
 
 
 def get_ci_info():
@@ -162,10 +172,18 @@ def get_ci_info():
 
 
 def get_driver_origin_remote(rust_driver_path):
-    return check_output(["bash", "-c", "git config --get remote.origin.url"], cwd=rust_driver_path, text=True).strip()
+    return check_output(
+        ["bash", "-c", "git config --get remote.origin.url"],
+        cwd=rust_driver_path,
+        text=True,
+    ).strip()
 
 
 def create_report(results, **kwargs):
     build_info = get_scylla_build_info()
-    scylla_version = f"{build_info.get('scylla-version')}-{build_info.get('scylla-release')}"
-    return dict(results=results, scylla_version=scylla_version, **get_ci_info(), **kwargs)
+    scylla_version = (
+        f"{build_info.get('scylla-version')}-{build_info.get('scylla-release')}"
+    )
+    return dict(
+        results=results, scylla_version=scylla_version, **get_ci_info(), **kwargs
+    )
