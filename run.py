@@ -24,7 +24,6 @@ class Run:
         self._rust_driver_git = rust_driver_git
         self._scylla_version = scylla_version
         self._tests = test
-        self._venv_path = Path(self._rust_driver_git) / "venv" / self.driver_version
         self.call_test_func = self.__getattribute__(f"run_{test}")
         if not self.call_test_func:
             raise RuntimeError(f"Not supported test: {test}")
