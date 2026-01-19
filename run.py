@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from cluster import TestCluster
-from common import scylla_uri_per_node, run_command_in_shell
+from common import scylla_uri_per_node
 from processjunit import ProcessJUnit
 
 
@@ -121,10 +121,6 @@ class Run:
         ) as cluster:
             cluster.start()
             cluster_nodes_ip = cluster.nodes_addresses()
-            run_command_in_shell(
-                driver_repo_path=self._rust_driver_git,
-                cmd=f"cd {self._rust_driver_git}; cargo build --verbose --examples",
-            )
             test_threads_flag = (
                 f"--test-threads={self._test_threads}"
                 if self._test_threads is not None
