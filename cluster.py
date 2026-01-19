@@ -24,7 +24,7 @@ def acquire_ip_prefix() -> Tuple[socket.socket, str]:
             return sock, ip_prefix
         except OSError:
             continue
-    raise ValueError(f"Couldn't acquire ip prefix - looks clusters are not cleared properly")
+    raise ValueError("Couldn't acquire ip prefix - looks clusters are not cleared properly")
 
 
 def release_ip_prefix_lock(sock: socket.socket) -> None:
