@@ -39,13 +39,14 @@ class Run:
         return None
 
     def ignore_tests(self) -> List[str]:
-        if self.version_folder() is None:
+        version_folder = self.version_folder()
+        if version_folder is None:
             logging.info(
                 "There are no ignore tests for version tag '%s'", self.driver_version
             )
             return []
 
-        ignore_file = self.version_folder() / "ignore.yaml"
+        ignore_file = version_folder / "ignore.yaml"
         if not ignore_file.exists():
             logging.info(
                 "Cannot find ignore file for version '%s'", self.driver_version
