@@ -150,7 +150,6 @@ class Run:
         metadata_file.write_text(json.dumps(metadata))
 
     def run(self, test_command: str, test_result_file_pref: str) -> ProcessJUnit | None:
-        report = None
         test_results_dir = Path(os.path.dirname(__file__)) / "test_results"
         argus_test_results_dir = Path(os.path.dirname(__file__)) / "argus_test_results"
         metadata_file = self.xunit_dir / self.metadata_file_name
@@ -164,50 +163,54 @@ class Run:
             self._rust_driver_git,
         )
         os.chdir(self._rust_driver_git)
-        if self._checkout_branch():
-            logging.info("Run test command: %s", test_command)
-            subprocess.call(
-                test_command,
-                shell=True,
-                executable="/bin/bash",
-                env=self.environment,
-                cwd=self._rust_driver_git,
-            )
-            logging.info("Finish test command: %s", test_command)
 
-            logging.info("Start Copy test result files")
-            self.copy_test_results(
-                copy_from_dir=Path(self._rust_driver_git),
-                copy_to_dir=test_results_dir,
-                test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
-                move=True,
-            )
-            logging.info("Finish Copy test result files")
+        if not self._checkout_branch():
+            return None
 
-            report = ProcessJUnit(
-                summary_report_xml_path=test_results_dir
-                / f"TEST-{self._tests}-{self._full_driver_version}-"
-                "summary.xml",
-                tests_result_xml=test_results_dir
-                / f"{test_result_file_pref}_{self._full_driver_version}.xml",
-                tag=self._full_driver_version,
-                ignore_set=self.ignore_tests(),
-            )
+        logging.info("Run test command: %s", test_command)
+        subprocess.call(
+            test_command,
+            shell=True,
+            executable="/bin/bash",
+            env=self.environment,
+            cwd=self._rust_driver_git,
+        )
+        logging.info("Finish test command: %s", test_command)
 
-            report.update_testcase_classname_with_tag()
-            report._create_report()
-            if not self.xunit_dir.exists():
-                self.xunit_dir.mkdir(parents=True)
-            metadata_file.write_text(json.dumps(metadata))
-            # Copy test results exclude summary files, as Argus can not parse them
-            logging.info("Start Copy test result files for Argus")
-            self.copy_test_results(
-                copy_from_dir=test_results_dir,
-                copy_to_dir=argus_test_results_dir,
-                test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
-                move=False,
-            )
-            logging.info("Finish Copy test result files for Argus")
+        logging.info("Start Copy test result files")
+        self.copy_test_results(
+            copy_from_dir=Path(self._rust_driver_git),
+            copy_to_dir=test_results_dir,
+            test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
+            move=True,
+        )
+        logging.info("Finish Copy test result files")
+
+        report = ProcessJUnit(
+            summary_report_xml_path=test_results_dir
+            / f"TEST-{self._tests}-{self._full_driver_version}-"
+            "summary.xml",
+            tests_result_xml=test_results_dir
+            / f"{test_result_file_pref}_{self._full_driver_version}.xml",
+            tag=self._full_driver_version,
+            ignore_set=self.ignore_tests(),
+        )
+
+        report.update_testcase_classname_with_tag()
+        report._create_report()
+        if not self.xunit_dir.exists():
+            self.xunit_dir.mkdir(parents=True)
+        metadata_file.write_text(json.dumps(metadata))
+        # Copy test results exclude summary files, as Argus can not parse them
+        logging.info("Start Copy test result files for Argus")
+        self.copy_test_results(
+            copy_from_dir=test_results_dir,
+            copy_to_dir=argus_test_results_dir,
+            test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
+            move=False,
+        )
+        logging.info("Finish Copy test result files for Argus")
+
         return report
 
     @staticmethod
