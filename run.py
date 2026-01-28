@@ -190,8 +190,7 @@ class Run:
             summary_report_xml_path=test_results_dir
             / f"TEST-{self._tests}-{self._full_driver_version}-"
             "summary.xml",
-            tests_result_xml=test_results_dir
-            / f"{test_result_file_pref}_{self._full_driver_version}.xml",
+            tests_result_xml=test_results_dir / self.result_file_name,
             tag=self._full_driver_version,
             ignore_set=self.ignore_tests(),
         )
