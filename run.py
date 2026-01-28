@@ -198,8 +198,9 @@ class Run:
 
         report.update_testcase_classname_with_tag()
         report._create_report()
-        if not self.xunit_dir.exists():
-            self.xunit_dir.mkdir(parents=True)
+
+        self.xunit_dir.mkdir(parents=True, exist_ok=True)
+
         metadata_file.write_text(json.dumps(metadata))
         # Copy test results exclude summary files, as Argus can not parse them
         logging.info("Start Copy test result files for Argus")
