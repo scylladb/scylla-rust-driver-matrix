@@ -213,6 +213,7 @@ RUN apt-get -y update
 RUN apt-get install -y software-properties-common
 RUN apt-get -y install openjdk-11-jre-headless
 RUN apt-get -y install iproute2
+RUN apt-get -y install patch
 RUN rm -rf /var/lib/apt/lists/*
 
 ADD requirements.txt requirements.txt

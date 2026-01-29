@@ -92,6 +92,7 @@ class Run:
 
     def _checkout_branch(self):
         try:
+            self._run_command_in_shell("git clean -d -f -e ccm/")
             self._run_command_in_shell("git checkout .")
             logging.info("git checkout to '%s' tag branch", self._full_driver_version)
             self._run_command_in_shell(f"git checkout {self._full_driver_version}")
@@ -103,6 +104,30 @@ class Run:
                 str(exc),
             )
             return False
+
+    def _apply_patch_files(self):
+        version_folder = self.version_folder()
+        if version_folder is None:
+            logging.info(
+                "There are no patches for version tag '%s'", self.driver_version
+            )
+            return
+        for file_path in version_folder.iterdir():
+            if file_path.name.endswith(".patch"):
+                try:
+                    logging.info("Show patch's statistics for file '%s'", file_path)
+                    self._run_command_in_shell(f"git apply --stat {file_path}")
+                    logging.info("Detect patch's errors for file '%s'", file_path)
+                    self._run_command_in_shell(f"git apply --check {file_path}")
+                    logging.info("Applying patch file '%s'", file_path)
+                    self._run_command_in_shell(f"patch -p1 -i {file_path}")
+                except Exception:
+                    logging.exception(
+                        "Failed to apply patch '%s' to version '%s'",
+                        file_path,
+                        self.driver_version,
+                    )
+                    raise
 
     @cached_property
     def xunit_dir(self) -> Path:
@@ -167,6 +192,8 @@ class Run:
         if not self._checkout_branch():
             return None
 
+        self._apply_patch_files()
+
         logging.info("Run test command: %s", test_command)
         subprocess.call(
             test_command,
@@ -185,6 +212,11 @@ class Run:
             move=True,
         )
         logging.info("Finish Copy test result files")
+
+        # Remove patched files - this will prevent patches from
+        # dirtying driver repo when working with matrix locally.
+        self._run_command_in_shell("git clean -d -f -e ccm/")
+        self._run_command_in_shell("git checkout .")
 
         report = ProcessJUnit(
             summary_report_xml_path=test_results_dir
