@@ -74,6 +74,8 @@ class Run:
         result["SCYLLA_VERSION"] = self._scylla_version
         result["RUST_BACKTRACE"] = "full"
         result["RUST_LOG"] = "trace"
+        # This env variable is used by ccm wrapper in Rust Driver tests
+        result["SCYLLA_TEST_CLUSTER"] = self._scylla_version
         return result
 
     def _run_command_in_shell(self, cmd: str):
