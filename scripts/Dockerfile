@@ -32,7 +32,7 @@ RUN set -eux; \
     ./rustup-init -y --no-modify-path --default-toolchain nightly-2025-12-07; \
     . /usr/local/cargo/env; \
     rm rustup-init; \
-    cargo install cargo2junit;
+    cargo install --locked cargo-nextest;
 
 ######
 # install Python 3.11 (https://github.com/docker-library/python/blob/b744d9708a2fb8e2295198ef146341c415e9bc28/3.11/slim-bullseye/Dockerfile)

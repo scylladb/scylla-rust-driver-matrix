@@ -156,9 +156,7 @@ class Run:
             )
             test_command = (
                 f"{scylla_uri_per_node(nodes_ips=cluster_nodes_ip)} "
-                f"cargo test --verbose --no-fail-fast --package scylla -- -Z unstable-options --format json --report-time {test_threads_flag} | "
-                f"tee rust_results_{self._full_driver_version}.jsocat rust_results_{self._full_driver_version}.json | "
-                f"cargo2junit > rust_results_{self._full_driver_version}.xml"
+                f"cargo nextest run --profile matrix --all-features {test_threads_flag}"
             )
             logging.info("Test command: %s", test_command)
             return self.run(
@@ -212,6 +210,10 @@ class Run:
             copy_to_dir=test_results_dir,
             test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
             move=True,
+        )
+        shutil.move(
+            Path(self._rust_driver_git) / "target" / "nextest" / "matrix" / "junit.xml",
+            test_results_dir / self.result_file_name,
         )
         logging.info("Finish Copy test result files")
 
