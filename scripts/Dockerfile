@@ -1,7 +1,7 @@
 FROM debian:bullseye-slim
 
 ######
-# install RUST (nightly build)
+# install RUST
 ######
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
@@ -29,7 +29,7 @@ RUN set -eux; \
     url="https://static.rust-lang.org/rustup/dist/${rustArch}/rustup-init"; \
     wget "$url"; \
     chmod +x rustup-init; \
-    ./rustup-init -y --no-modify-path --default-toolchain nightly-2025-12-07; \
+    ./rustup-init -y --no-modify-path --default-toolchain 1.93; \
     . /usr/local/cargo/env; \
     rm rustup-init; \
     cargo install --locked cargo-nextest;
