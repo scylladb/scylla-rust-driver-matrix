@@ -1,0 +1,392 @@
+diff --git c/.config/nextest.toml w/.config/nextest.toml
+new file mode 100644
+index 000000000..a852523c8
+--- /dev/null
++++ w/.config/nextest.toml
+@@ -0,0 +1,31 @@
++[profile.default]
++default-filter = "all() - (binary_id(scylla::integration) & test(ccm::))"
++# Let's fight slow tests. Test will be marked as slow if it runs longer than 20s,
++# and terminated after a minute.
++# This is liberal for now. In the future we can impose much stricter limit on
++# non-integration tests.
++slow-timeout = { period = "20s", terminate-after = 3 }
++# This is so we see which tests were skipped
++status-level = "all"
++# Without this a list of slow tests won't be printed at the end
++final-status-level = "slow"
++
++[profile.ci]
++# Do not cancel the test run on the first failure.
++fail-fast = false
++
++# Let's have a separate profile for matrix.
++# That way we'll be able to configure its behavior more easily.
++[profile.matrix]
++inherits = "ci"
++# Matrix should only run tests that require scylla
++# For now it means all tests in scylla package.
++# In the future we may be able to change that to
++# only integration tests.
++default-filter = "package(scylla)"
++
++[profile.matrix.junit]
++path = "junit.xml"
++# These are the default values, specified for clarity.
++store-success-output = false
++store-failure-output = true
+diff --git c/Makefile w/Makefile
+index 53121897d..d4b2a42db 100644
+--- c/Makefile
++++ w/Makefile
+@@ -54,7 +54,7 @@ test: up
+ 
+ .PHONY: ccm-test
+ ccm-test:
+-	RUSTFLAGS="${RUSTFLAGS} --cfg ccm_tests" cargo test --test integration ccm
++    cargo nextest run --all-features -E 'test(ccm::)' --ignore-default-filter
+ 
+ .PHONY: dockerized-test
+ dockerized-test: up
+diff --git c/scylla-proxy/src/proxy.rs w/scylla-proxy/src/proxy.rs
+index 0d839c04b..836a4d6f6 100644
+--- c/scylla-proxy/src/proxy.rs
++++ w/scylla-proxy/src/proxy.rs
+@@ -8,10 +8,11 @@ use bytes::Bytes;
+ use compression::no_compression;
+ use scylla_cql::frame::types::read_string_multimap;
+ use std::collections::HashMap;
++use std::env::VarError;
+ use std::fmt::Display;
+ use std::future::Future;
+ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
++use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
+ use std::sync::{Arc, Mutex};
+ use tokio::io::{AsyncRead, AsyncWrite};
+ use tokio::net::{TcpListener, TcpSocket, TcpStream};
+@@ -1495,6 +1496,19 @@ impl ProxyWorker {
+ // Returns next free IP address for another proxy instance.
+ // Useful for concurrent testing.
+ pub fn get_exclusive_local_address() -> IpAddr {
++    match std::env::var("NEXTEST_TEST_GLOBAL_SLOT") {
++        Ok(slot) => {
++            let slot: u16 = slot
++                .parse()
++                .unwrap_or_else(|e| panic!("Invalid slot {e:?}"));
++            get_exclusive_local_address_nextest(slot)
++        }
++        Err(VarError::NotPresent) => get_exclusive_local_address_libtest(),
++        Err(VarError::NotUnicode(e)) => panic!("Invalid slot {e:?}"),
++    }
++}
++
++fn get_exclusive_local_address_libtest() -> IpAddr {
+     // A big enough number reduces possibility of clashes with user-taken addresses:
+     static ADDRESS_LOWER_THREE_OCTETS: AtomicU32 = AtomicU32::new(4242);
+     let next_addr = ADDRESS_LOWER_THREE_OCTETS.fetch_add(1, Ordering::Relaxed);
+@@ -1510,6 +1524,27 @@ pub fn get_exclusive_local_address() -> IpAddr {
+     ))
+ }
+ 
++fn get_exclusive_local_address_nextest(slot: u16) -> IpAddr {
++    static ADDRESS_LOWER_OCTET: AtomicU8 = AtomicU8::new(255);
++    const FREE_RANGES: u16 = 16;
++    let next_address_lower = ADDRESS_LOWER_OCTET.fetch_sub(1, Ordering::Relaxed);
++    if next_address_lower == 0 {
++        panic!("Loopback address pool for this test depleted");
++    }
++
++    let next_range_bytes: [u8; 2] = slot
++        .checked_add(FREE_RANGES)
++        .unwrap_or_else(|| panic!("Loopback address pool for tests depleted"))
++        .to_le_bytes();
++
++    IpAddr::V4(Ipv4Addr::new(
++        127,
++        next_range_bytes[1],
++        next_range_bytes[0],
++        next_address_lower,
++    ))
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::compression::no_compression;
+diff --git c/scylla/Cargo.toml w/scylla/Cargo.toml
+index a5b7e1ae3..f397a5f67 100644
+--- c/scylla/Cargo.toml
++++ w/scylla/Cargo.toml
+@@ -158,7 +158,6 @@ unexpected_cfgs = { level = "warn", check-cfg = [
+     'cfg(cassandra_tests)',
+     'cfg(cpp_rust_unstable)',
+     'cfg(nodejs_rs_unstable)',
+-    'cfg(ccm_tests)',
+ ] }
+ 
+ [package.metadata.cargo-semver-checks.lints]
+diff --git c/scylla/src/utils/test_utils.rs w/scylla/src/utils/test_utils.rs
+index c8e205f3f..05b7ee650 100644
+--- c/scylla/src/utils/test_utils.rs
++++ w/scylla/src/utils/test_utils.rs
+@@ -3,6 +3,7 @@ use tracing::{error, warn};
+ use tracing_subscriber::Layer;
+ use tracing_subscriber::layer::SubscriberExt;
+ use tracing_subscriber::util::SubscriberInitExt;
++use uuid::Uuid;
+ 
+ use crate::client::caching_session::CachingSession;
+ use crate::client::session::Session;
+@@ -18,23 +19,10 @@ use crate::statement::unprepared::Statement;
+ use std::net::SocketAddr;
+ use std::sync::Arc;
+ use std::{num::NonZeroU32, time::Duration};
+-use std::{
+-    sync::atomic::{AtomicUsize, Ordering},
+-    time::{SystemTime, UNIX_EPOCH},
+-};
+-
+-static UNIQUE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+ 
+ pub(crate) fn unique_keyspace_name() -> String {
+-    let cnt = UNIQUE_COUNTER.fetch_add(1, Ordering::SeqCst);
+-    let name = format!(
+-        "test_rust_{}_{}",
+-        SystemTime::now()
+-            .duration_since(UNIX_EPOCH)
+-            .unwrap()
+-            .as_secs(),
+-        cnt
+-    );
++    let id = Uuid::new_v4();
++    let name = format!("test_rust_{}", id.as_simple(),);
+     println!("Unique name: {name}");
+     name
+ }
+diff --git c/scylla/tests/integration/ccm/authenticate.rs w/scylla/tests/integration/ccm/authenticate.rs
+index 5deb15a69..495439aa5 100644
+--- c/scylla/tests/integration/ccm/authenticate.rs
++++ w/scylla/tests/integration/ccm/authenticate.rs
+@@ -37,7 +37,6 @@ where
+ }
+ 
+ #[tokio::test]
+-#[cfg_attr(not(ccm_tests), ignore)]
+ async fn authenticate_superuser_cluster_one_node() {
+     setup_tracing();
+     async fn test(cluster: &mut Cluster) {
+@@ -100,7 +99,6 @@ impl AuthenticatorProvider for CustomAuthenticatorProvider {
+ }
+ 
+ #[tokio::test]
+-#[cfg_attr(not(ccm_tests), ignore)]
+ async fn custom_authentication_cluster_one_node() {
+     setup_tracing();
+     async fn test(cluster: &mut Cluster) {
+diff --git c/scylla/tests/integration/ccm/example.rs w/scylla/tests/integration/ccm/example.rs
+index 66539f3eb..ce472e174 100644
+--- c/scylla/tests/integration/ccm/example.rs
++++ w/scylla/tests/integration/ccm/example.rs
+@@ -14,7 +14,6 @@ fn cluster_1_node() -> ClusterOptions {
+ }
+ 
+ #[tokio::test]
+-#[cfg_attr(not(ccm_tests), ignore)]
+ async fn test_cluster_lifecycle1() {
+     setup_tracing();
+     async fn test(cluster: &mut Cluster) {
+diff --git c/scylla/tests/integration/ccm/lib/ip_allocator.rs w/scylla/tests/integration/ccm/lib/ip_allocator.rs
+index 746423fe1..0978a0d22 100644
+--- c/scylla/tests/integration/ccm/lib/ip_allocator.rs
++++ w/scylla/tests/integration/ccm/lib/ip_allocator.rs
+@@ -5,6 +5,7 @@ use std::net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr};
+ use std::str::FromStr;
+ 
+ use anyhow::{Context, Error};
++use tracing::debug;
+ 
+ /// A subnet prefix for local network (127.x.x.x/24).
+ #[derive(Debug, Clone, Copy)]
+@@ -83,7 +84,7 @@ impl Default for NetPrefix {
+ /// A local subnet identifier (127.x.y.0/24).
+ /// The local subnet is identified by two octets x and y.
+ #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+-struct LocalSubnetIdentifier(u8, u8);
++pub(super) struct LocalSubnetIdentifier(u8, u8);
+ 
+ impl From<LocalSubnetIdentifier> for Ipv4Addr {
+     fn from(subnet_id: LocalSubnetIdentifier) -> Self {
+@@ -103,8 +104,11 @@ impl From<Ipv4Addr> for LocalSubnetIdentifier {
+     }
+ }
+ 
+-pub(super) struct IpAllocator {
+-    used_ips: BTreeSet<LocalSubnetIdentifier>,
++pub(super) enum IpAllocator {
++    FileBased {
++        used_ips: BTreeSet<LocalSubnetIdentifier>,
++    },
++    Nextest(Option<LocalSubnetIdentifier>),
+ }
+ 
+ impl IpAllocator {
+@@ -114,6 +118,20 @@ impl IpAllocator {
+     ///   sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+     ///   0: 3500007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000   193        0 7487 1 000000007e427786 100 0 0 10 5
+     pub(super) fn new() -> Result<Self, Error> {
++        if let Ok(slot_str) = std::env::var("NEXTEST_TEST_GLOBAL_SLOT") {
++            const FREE_RANGES: u16 = 16;
++            let slot: u16 = slot_str
++                .parse()
++                .unwrap_or_else(|e| panic!("Invalid slot {e:?}"));
++            let real_slot_bytes: [u8; 2] = slot
++                .checked_add(FREE_RANGES)
++                .unwrap_or_else(|| panic!("Loopback address pool for tests depleted"))
++                .to_le_bytes();
++
++            let nextest_subnet = LocalSubnetIdentifier(real_slot_bytes[1], real_slot_bytes[0]);
++            debug!("CCM allocator for nextest: allocated {nextest_subnet:?}");
++            return Ok(Self::Nextest(Some(nextest_subnet)));
++        }
+         let mut used_ips: BTreeSet<LocalSubnetIdentifier> = BTreeSet::new();
+         let file = File::open("/proc/net/tcp").context("Failed to open /proc/net/tcp file")?;
+         let mut lines = BufReader::new(file).lines();
+@@ -133,26 +151,34 @@ impl IpAllocator {
+                     }
+                 });
+         }
+-        Ok(Self { used_ips })
++        Ok(Self::FileBased { used_ips })
+     }
+ 
+     /// Removes a free IP prefix from the pool of local subnets (127.x.x.x/24) and returns it to the caller.
+     /// The IP prefix should be later returned via [`IpAllocator::return_ip_prefix`].
+     pub(super) fn alloc_ip_prefix(&mut self) -> Result<NetPrefix, Error> {
+-        for a in 0..=255 {
+-            for b in 0..=255 {
+-                if a == 0 && b == 0 {
+-                    continue;
++        match self {
++            Self::FileBased { used_ips } => {
++                for a in 0..=255 {
++                    for b in 0..=255 {
++                        if a == 0 && b == 0 {
++                            continue;
++                        }
++                        let subnet_id = LocalSubnetIdentifier(a, b);
++                        if !used_ips.contains(&subnet_id) {
++                            used_ips.insert(subnet_id);
++                            return Ok(subnet_id.into());
++                        }
++                    }
+                 }
+-                let subnet_id = LocalSubnetIdentifier(a, b);
+-                if !self.used_ips.contains(&subnet_id) {
+-                    self.used_ips.insert(subnet_id);
+-                    return Ok(subnet_id.into());
+-                }
+-            }
+-        }
+ 
+-        Err(anyhow::anyhow!("No free IP prefixes available"))
++                Err(anyhow::anyhow!("No free IP prefixes available"))
++            }
++            Self::Nextest(state) => match state.take() {
++                Some(subnet_id) => Ok(subnet_id.into()),
++                None => Err(anyhow::anyhow!("No free IP prefixes available")),
++            },
++        }
+     }
+ 
+     /// Returns the IP prefix back to the pool of local subnets (127.x.x.x/24).
+@@ -162,12 +188,24 @@ impl IpAllocator {
+             _ => return Err(anyhow::anyhow!("Ipv6 addresses are not yet supported!")),
+         };
+         let subnet_id: LocalSubnetIdentifier = ipv4.into();
+-
+-        if !self.used_ips.remove(&subnet_id) {
+-            return Err(anyhow::anyhow!(
+-                "IP prefix {} was not allocated - something gone wrong!",
+-                ip_prefix
+-            ));
++        match self {
++            Self::FileBased { used_ips } => {
++                if !used_ips.remove(&subnet_id) {
++                    return Err(anyhow::anyhow!(
++                        "IP prefix {} was not allocated - something gone wrong!",
++                        ip_prefix
++                    ));
++                }
++            }
++            Self::Nextest(state) => {
++                if state.is_some() {
++                    return Err(anyhow::anyhow!(
++                        "IP prefix {} was not allocated - something gone wrong!",
++                        ip_prefix
++                    ));
++                }
++                *state = Some(subnet_id)
++            }
+         }
+ 
+         Ok(())
+diff --git c/scylla/tests/integration/ccm/lib/mod.rs w/scylla/tests/integration/ccm/lib/mod.rs
+index 832398d4a..d0733a363 100644
+--- c/scylla/tests/integration/ccm/lib/mod.rs
++++ w/scylla/tests/integration/ccm/lib/mod.rs
+@@ -51,7 +51,7 @@ static ROOT_CCM_DIR: LazyLock<String> = LazyLock::new(|| {
+     let path = PathBuf::from(&ccm_root_dir);
+     if !path.try_exists().unwrap() {
+         info!("Directory {:?} not found, creating", path);
+-        std::fs::create_dir(path).unwrap();
++        std::fs::create_dir_all(path).unwrap();
+     }
+ 
+     ccm_root_dir
+diff --git c/scylla/tests/integration/statements/prepared_metadata_extension.rs w/scylla/tests/integration/statements/prepared_metadata_extension.rs
+index f9705dc2e..c5104d6ff 100644
+--- c/scylla/tests/integration/statements/prepared_metadata_extension.rs
++++ w/scylla/tests/integration/statements/prepared_metadata_extension.rs
+@@ -319,7 +319,6 @@ async fn test_basic_metadata_update() {
+ // Verify that if we prepare statement on such node, and execute it on another,
+ // everything works.
+ #[tokio::test]
+-#[ntest::timeout(10000)]
+ #[cfg_attr(scylla_cloud_tests, ignore)]
+ async fn test_mixed_cluster() {
+     use Condition::*;
+diff --git c/scylla/tests/integration/utils.rs w/scylla/tests/integration/utils.rs
+index 7f7e6b5ed..8e461e3d5 100644
+--- c/scylla/tests/integration/utils.rs
++++ w/scylla/tests/integration/utils.rs
+@@ -31,8 +31,7 @@ use std::num::NonZeroU32;
+ use std::process::Command;
+ use std::str::FromStr;
+ use std::sync::Arc;
+-use std::sync::atomic::{AtomicUsize, Ordering};
+-use std::time::{Duration, SystemTime, UNIX_EPOCH};
++use std::time::Duration;
+ use std::{env, iter};
+ use tokio::sync::mpsc;
+ use tracing::{error, warn};
+@@ -82,18 +81,9 @@ pub(crate) fn find_local_ip_for_destination(dest: IpAddr) -> Option<IpAddr> {
+     IpAddr::from_str(local_ip_str).ok()
+ }
+ 
+-static UNIQUE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+-
+ pub(crate) fn unique_keyspace_name() -> String {
+-    let cnt = UNIQUE_COUNTER.fetch_add(1, Ordering::SeqCst);
+-    let name = format!(
+-        "test_rust_{}_{}",
+-        SystemTime::now()
+-            .duration_since(UNIX_EPOCH)
+-            .unwrap()
+-            .as_secs(),
+-        cnt
+-    );
++    let id = Uuid::new_v4();
++    let name = format!("test_rust_{}", id.as_simple(),);
+     println!("Unique name: {name}");
+     name
+ }
