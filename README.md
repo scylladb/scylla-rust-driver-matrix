@@ -1,7 +1,7 @@
 # RUST Driver Matrix
 
 ## Prerequisites
-* Rust (nightly build)
+* Rust
 * Python3.10
 * pip
 * docker

@@ -7,15 +7,6 @@ from typing import Optional
 # CCM_CLUSTER_NODES = 3
 
 
-def run_command_in_shell(driver_repo_path: str, cmd: str, environment: Optional[dict[str, str]] = None):
-    logging.debug("Execute the cmd '%s'", cmd)
-    with subprocess.Popen(cmd, shell=True, executable="/bin/bash", env=environment,
-                          cwd=Path(driver_repo_path), stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-        stderr = proc.communicate()
-        status_code = proc.returncode
-    assert status_code == 0, stderr
-
-
 def scylla_uri_per_node(nodes_ips: dict[str, str]) -> str:
     uri_per_node: list[str] = []
     for node, ip in nodes_ips.items():

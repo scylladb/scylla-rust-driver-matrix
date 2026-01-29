@@ -1,7 +1,7 @@
 FROM debian:bullseye-slim
 
 ######
-# install RUST (nightly build)
+# install RUST
 ######
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
@@ -29,10 +29,10 @@ RUN set -eux; \
     url="https://static.rust-lang.org/rustup/dist/${rustArch}/rustup-init"; \
     wget "$url"; \
     chmod +x rustup-init; \
-    ./rustup-init -y --no-modify-path --default-toolchain nightly-2025-12-07; \
+    ./rustup-init -y --no-modify-path --default-toolchain 1.93; \
     . /usr/local/cargo/env; \
     rm rustup-init; \
-    cargo install cargo2junit;
+    cargo install --locked cargo-nextest;
 
 ######
 # install Python 3.11 (https://github.com/docker-library/python/blob/b744d9708a2fb8e2295198ef146341c415e9bc28/3.11/slim-bullseye/Dockerfile)
@@ -213,6 +213,7 @@ RUN apt-get -y update
 RUN apt-get install -y software-properties-common
 RUN apt-get -y install openjdk-11-jre-headless
 RUN apt-get -y install iproute2
+RUN apt-get -y install patch
 RUN rm -rf /var/lib/apt/lists/*
 
 ADD requirements.txt requirements.txt
