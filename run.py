@@ -211,7 +211,7 @@ class Run:
             test_result_file_pref=f"{test_result_file_pref}_{self._full_driver_version}",
             move=True,
         )
-        shutil.move(
+        shutil.copy(
             Path(self._rust_driver_git) / "target" / "nextest" / "matrix" / "junit.xml",
             test_results_dir / self.result_file_name,
         )
