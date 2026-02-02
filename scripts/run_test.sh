@@ -36,6 +36,8 @@ mkdir -p ${HOME}/.docker
 BUILD_OPTIONS=$(env | sed -n 's/^\(BUILD_[^=]\+\)=.*/--env \1/p')
 # export all JOB_* env vars into the docker run
 JOB_OPTIONS=$(env | sed -n 's/^\(JOB_[^=]\+\)=.*/--env \1/p')
+# export all AWS_* env vars into the docker run
+AWS_OPTIONS=$(env | sed -n 's/^\(AWS_[^=]\+\)=.*/--env \1/p')
 
 # if in jenkins also mount the workspace into docker
 if [[ -d ${WORKSPACE} ]]; then
@@ -69,6 +71,7 @@ docker_cmd="docker run --detach=true --init \
     ${SCYLLA_OPTIONS} \
     ${BUILD_OPTIONS} \
     ${JOB_OPTIONS} \
+    ${AWS_OPTIONS} \
     -w ${RUST_MATRIX_DIR} \
     -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /etc/passwd:/etc/passwd:ro \
