@@ -36,8 +36,6 @@ mkdir -p ${HOME}/.docker
 BUILD_OPTIONS=$(env | sed -n 's/^\(BUILD_[^=]\+\)=.*/--env \1/p')
 # export all JOB_* env vars into the docker run
 JOB_OPTIONS=$(env | sed -n 's/^\(JOB_[^=]\+\)=.*/--env \1/p')
-# export all AWS_* env vars into the docker run
-AWS_OPTIONS=$(env | sed -n 's/^\(AWS_[^=]\+\)=.*/--env \1/p')
 
 # if in jenkins also mount the workspace into docker
 if [[ -d ${WORKSPACE} ]]; then
@@ -46,26 +44,18 @@ else
 WORKSPACE_MNT=""
 fi
 
-DOCKER_CONFIG_MNT="-v $(eval echo ~${USER})/.docker:${HOME}/.docker"
-
 # export all SCYLLA_* env vars into the docker run
 SCYLLA_OPTIONS=$(env | sed -n 's/^\(SCYLLA_[^=]\+\)=.*/--env \1/p')
-
-DOCKER_COMMAND_PARAMS="
-${SCYLLA_OPTIONS}
-"
 
 group_args=()
 for gid in $(id -G); do
     group_args+=(--group-add "$gid")
 done
 
+TMPFS_OPTS="uid=$(id -u),gid=$(id -g),mode=700"
 
-
-docker_cmd="docker run --detach=true \
+docker_cmd="docker run --detach=true --init \
     ${WORKSPACE_MNT} \
-    ${DOCKER_COMMAND_PARAMS} \
-    ${DOCKER_CONFIG_MNT} \
     -v ${RUST_MATRIX_DIR}:${RUST_MATRIX_DIR} \
     -v ${RUST_DRIVER_DIR}:${RUST_DRIVER_DIR} \
     -v ${CCM_DIR}:${CCM_DIR} \
@@ -74,23 +64,21 @@ docker_cmd="docker run --detach=true \
     -e LC_ALL=en_US.UTF-8 \
     -e DEV_MODE \
     -e WORKSPACE \
+    -e CCM_DIR \
+    -e CARGO_TERM_COLOR=always \
+    ${SCYLLA_OPTIONS} \
     ${BUILD_OPTIONS} \
     ${JOB_OPTIONS} \
-    ${AWS_OPTIONS} \
     -w ${RUST_MATRIX_DIR} \
-    -v /var/run/docker.sock:/var/run/docker.sock \
     -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
     -v /etc/passwd:/etc/passwd:ro \
     -v /etc/group:/etc/group:ro \
     -u $(id -u ${USER}):$(id -g ${USER}) \
     ${group_args[@]} \
-    --tmpfs ${HOME}/.cache \
-    --tmpfs ${HOME}/.config \
-    --tmpfs ${HOME}/.cassandra \
-    -v ${HOME}/.local:${HOME}/.local \
+    --tmpfs ${HOME}:$TMPFS_OPTS,exec \
     -v ${HOME}/.ccm:${HOME}/.ccm \
-    --network=host --privileged \
-    ${DOCKER_IMAGE} bash -c 'pip install -e $CCM_DIR ; export PATH=\$PATH:\${HOME}/.local/bin ; $*'"
+    --network=host \
+    ${DOCKER_IMAGE} bash -c '$*'"
 
 echo "Running Docker: $docker_cmd"
 container=$(eval $docker_cmd)
@@ -123,4 +111,3 @@ trap - SIGTERM SIGINT SIGHUP EXIT
 [[ -z "$exitcode" ]] && exitcode=1
 
 exit "$exitcode"
-
