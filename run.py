@@ -223,16 +223,13 @@ class Run:
         self._run_command_in_shell("git checkout .")
 
         report = ProcessJUnit(
-            summary_report_xml_path=test_results_dir
-            / f"TEST-{self._tests}-{self._full_driver_version}-"
-            "summary.xml",
             tests_result_xml=test_results_dir / self.result_file_name,
             tag=self._full_driver_version,
             ignore_set=self.ignore_tests(),
         )
 
         report.update_testcase_classname_with_tag()
-        report._create_report()
+        report.process()
 
         self.xunit_dir.mkdir(parents=True, exist_ok=True)
 
