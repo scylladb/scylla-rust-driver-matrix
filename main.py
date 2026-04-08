@@ -1,15 +1,15 @@
-import sys
 import argparse
 import logging
 import os
-import subprocess
 import re
+import subprocess
+import sys
+import traceback
 from datetime import timedelta
 from typing import List, Set
-import traceback
 
-from run import Run
 from email_sender import create_report, get_driver_origin_remote, send_mail
+from run import Run
 
 logging.basicConfig(level=logging.INFO)
 
@@ -150,7 +150,7 @@ def extract_n_latest_repo_tags(
 
 def get_arguments() -> argparse.Namespace:
     num_cpus = len(os.sched_getaffinity(0))
-    default_test_threads = 16 if num_cpus > 16 else None
+    default_test_threads = 4 if num_cpus > 4 else None
     versions = ["v0.13.0", "v0.12.0"]
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
@@ -194,7 +194,7 @@ def get_arguments() -> argparse.Namespace:
         "--test-threads",
         help="How many threads to use for testing. Corresponds to the same flag in `cargo test`."
         "If not provided, defaults to None (which means the flag won't be passed to Cargo,"
-        "unless there are more than 16 CPUs available, in which case it defaults to 16."
+        "unless there are more than 4 CPUs available, in which case it defaults to 4."
         "This is to prevent overwhelming Scylla cluster with too many schema changes",
         type=int,
         default=default_test_threads,
