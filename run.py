@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
+import re
 
 from cluster import TestCluster
 from common import scylla_uri_per_node
@@ -65,6 +66,22 @@ class Run:
                 ignore_file,
                 self.driver_version,
             )
+
+        effective_version = self._scylla_version.removeprefix("release:")
+        logging.info("Checking version-specific ignores for %s", effective_version)
+        for ignored_version, test_list in ignore_tests.get(
+            "version_ignore", {}
+        ).items():
+            if re.match(ignored_version, effective_version):
+                logging.debug(
+                    "Adding ignored tests for version regex %s because it matches %s: %s",
+                    ignored_version,
+                    effective_version,
+                    test_list,
+                )
+                ignore += test_list
+
+        logging.info("Ignored test list: %s", ignore)
         return ignore
 
     @cached_property
