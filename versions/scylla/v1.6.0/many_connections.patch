@@ -1,0 +1,24 @@
+commit 42afebfc2d50d4706ea651fd3776104d33cce38f
+Author: Karol Baryła <karol.baryla@scylladb.com>
+Date:   Fri Apr 24 13:41:04 2026 +0200
+
+    test many_connections: Decrease number of connections
+    
+    On many systems there is a limit of 1024 file descriptors per process by
+    default. Recently, for testing purposes, each connection get its
+    descriptor duplicated (only in `cfg(test)`). This overflowed the limit.
+    This commit decreases the number a bit.
+
+diff --git a/scylla/src/network/connection_pool.rs b/scylla/src/network/connection_pool.rs
+index 525ba5c2d..4367e3c90 100644
+--- a/scylla/src/network/connection_pool.rs
++++ b/scylla/src/network/connection_pool.rs
+@@ -1274,7 +1274,7 @@ mod tests {
+     #[tokio::test]
+     async fn many_connections() {
+         setup_tracing();
+-        let connections_number = 512;
++        let connections_number = 400;
+ 
+         let connect_address: SocketAddr = std::env::var("SCYLLA_URI")
+             .unwrap_or_else(|_| "172.42.0.2:9042".to_string())
