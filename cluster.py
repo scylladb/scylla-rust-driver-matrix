@@ -1,4 +1,5 @@
 import logging
+import shutil
 import socket
 from pathlib import Path
 from typing import Dict, Tuple
@@ -36,9 +37,18 @@ def release_ip_prefix_lock(sock: socket.socket) -> None:
 class TestCluster:
     """Responsible for configuring, starting and stopping cluster for tests"""
 
-    def __init__(self, driver_directory: Path, version: str, nodes: int) -> None:
+    def __init__(
+        self,
+        driver_directory: Path,
+        version: str,
+        nodes: int,
+        log_dest_dir: Path | None = None,
+        log_file_prefix: str = "",
+    ) -> None:
         self.cluster_directory = driver_directory / "ccm"
         self.cluster_directory.mkdir(parents=True, exist_ok=True)
+        self._log_dest_dir = log_dest_dir
+        self._log_file_prefix = log_file_prefix
         logger.info("Preparing test cluster binaries and configuration...")
         self._ip_prefix_lock, ip_prefix = acquire_ip_prefix()
         self._cluster: ccm.ScyllaCluster = ccm.ScyllaCluster(
@@ -86,5 +96,27 @@ class TestCluster:
 
     def remove(self):
         logger.info("Removing test cluster...")
+        any_node_down = any(
+            not node.is_running() for node in self._cluster.nodes.values()
+        )
+        if any_node_down and self._log_dest_dir is not None:
+            self._log_dest_dir.mkdir(parents=True, exist_ok=True)
+            logger.warning(
+                "Some nodes are down, copying all node logs to %s for debugging",
+                self._log_dest_dir,
+            )
+            for node in self._cluster.nodes.values():
+                log_file = Path(node.logfilename())
+                dest = self._log_dest_dir / f"{self._log_file_prefix}_{node.name}.log"
+                logger.warning(
+                    "Copying log for %s (running=%s) to %s",
+                    node.name,
+                    node.is_running(),
+                    dest,
+                )
+                try:
+                    shutil.copy(str(log_file), str(dest))
+                except FileNotFoundError:
+                    logger.warning("Log file not found: %s", log_file)
         self._cluster.remove()
         logger.info("test cluster removed")

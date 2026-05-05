@@ -162,7 +162,9 @@ class Run:
 
     def run_rust(self):
         with TestCluster(
-            Path(self._rust_driver_git), self._scylla_version, nodes=3
+            Path(self._rust_driver_git), self._scylla_version, nodes=3,
+            log_dest_dir=Path(os.path.dirname(__file__)) / "test_results",
+            log_file_prefix=self._full_driver_version,
         ) as cluster:
             cluster.start()
             cluster_nodes_ip = cluster.nodes_addresses()
