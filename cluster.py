@@ -52,7 +52,7 @@ class TestCluster:
         logger.info("Preparing test cluster binaries and configuration...")
         self._ip_prefix_lock, ip_prefix = acquire_ip_prefix()
         self._cluster: ccm.ScyllaCluster = ccm.ScyllaCluster(
-            self.cluster_directory, "test", cassandra_version=version
+            self.cluster_directory, "TestCluster", cassandra_version=version
         )
         self._cluster.set_ipprefix(ip_prefix)
         self._cluster.populate(nodes)
