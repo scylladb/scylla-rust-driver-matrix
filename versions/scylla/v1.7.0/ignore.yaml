@@ -2,6 +2,8 @@ tests:
   ignore:
     # It is fine on CI, but flaky on matrix. Probably the runner is too slow.
     - "load_balancing::tablets::test_default_policy_is_tablet_aware"
+    # Known deadlock, fixed in 1.8.0
+    - "metadata::configuration::test_custom_metadata_timeouts"
   version_ignore:
     # 2025.1 doesn't support vector types.
     "2025\\.1\\..*":
