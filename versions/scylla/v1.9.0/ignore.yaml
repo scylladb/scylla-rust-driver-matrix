@@ -1,11 +1,13 @@
 tests:
   version_ignore:
-    # 2025.1 doesn't support vector types.
     "2025\\.1\\..*":
+      # 2025.1 doesn't support vector types.
       - "types::cql_collections::test_vector_type_all_types"
       - "types::cql_collections::test_vector_type_metadata"
       - "types::cql_collections::test_vector_type_prepared"
       - "types::cql_collections::test_vector_type_unprepared"
+      # 2025.1 doesn't support TLS tickets
+      - "ccm::tls_tickets::test_tls_session_tickets"
   ignore:
     # Flaky test, will be fixed in 1.10
     - "statements::coordinator::test_exposed_request_coordinator"
