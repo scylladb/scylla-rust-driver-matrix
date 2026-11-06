@@ -1,4 +1,4 @@
-FROM rust:1.93-slim-bullseye
+FROM rust:1.99-slim-bullseye
 
 # Necessary system dependencies
 # /var/lib/apt/lists is removed to save space in the final image
@@ -33,7 +33,7 @@ ENV UV_LINK_MODE=copy \
 
 # Install a managed Python version system-wide
 RUN mkdir -p "$UV_PYTHON_INSTALL_DIR" \
- && uv python install 3.14 \
+ && uv python install 3.15 \
  && chmod -R a+rX "$UV_PYTHON_INSTALL_DIR"
 
 # Install cargo nextest
