@@ -1,4 +1,4 @@
-FROM rust:1.99-slim-bullseye
+FROM rust:1.100.0-slim-bookworm
 
 # Necessary system dependencies
 # /var/lib/apt/lists is removed to save space in the final image
